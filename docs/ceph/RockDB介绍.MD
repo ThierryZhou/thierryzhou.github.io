@@ -17,7 +17,7 @@ LSM树，即日志结构合并树(Log-Structured Merge-Tree)。其实它并不�
 
 从概念上说，最基本的LSM是很简单的 。将之前使用一个大的查找结构（造成随机读写，影响写性能），变换为将写操作顺序的保存到一些相似的有序文件（也就是sstable)中。所以每个文件包 含短时间内的一些改动。因为文件是有序的，所以之后查找也会很快。文件是不可修改的，他们永远不会被更新，新的更新操作只会写到新的文件中。读操作检查很 有的文件。通过周期性的合并这些文件来减少文件个数。
 
-![示意图](images/LSM-archietcture.png)
+![示意图](/assets/ceph/LSM-archietcture.png)
 
 # 二、架构
   RocksDB 是一个基于键值对存储接口的存储引擎库，其中键和值是任意字节流。RocksDB 将所有数据按排序顺序组织起来，常用的操作有Get(key), NewIterator(), Put(key, val), Delete(key), 和SingleDelete(key)。
@@ -26,11 +26,11 @@ LSM树，即日志结构合并树(Log-Structured Merge-Tree)。其实它并不�
 
 RocksDB使用布隆过滤器来判定键在哪个sst文件中。为了避免随机写，它将数据积累到内存中的memtable中，然后一次性刷写到硬盘中。RocksDB的文件是不可变的，一旦生成就不会继续写该文件。记录不会被更新或者删除，会生成一个新文件。这会在硬盘生成一些多余的数据，会需要数据库Compaction（压缩），Compaction文件会移除冗余的键值对并腾出空间，如图所示
 
-![RockDB 架构图](images/architecture.png)
+![RockDB 架构图](/assets/ceph/architecture.png)
 
 RocksDB用不同的排列组织数据，也就是层level，每层都有个目标大小，每层的目标大小增长倍数是相同的，默认是10倍，因此，如果第一层目标大小1g，那么2,3,4层大小就是10g，100g，1000g，一个键可能出现在不同的层，随着compaction，但是越新的值层越高，越旧的值层越低。
 
-![RockDB Level](images/rockdb-level.png)
+![RockDB Level](/assets/ceph/rockdb-level.png)
 
 
 # 三、RockDB和LevelDB的区别
@@ -49,14 +49,14 @@ RocksDB用不同的排列组织数据，也就是层level，每层都有个目�
 # 四、RockDB在Ceph中的应用
 #### Ceph Monitor中使用了RockDB
 
-![Monitor架构图](images/monitor.png)
+![Monitor架构图](/assets/ceph/monitor.png)
 
 Ceph Monitor的内部其实是一个分布式kv数据库。从下往上分别是MonitorDBStore、Paxos和PaxosService。PaxosService负责保证每次都只会有一个提案进入paxos流程。Paxos模块具体实现了multi-Paxos算法。MonitorDBStore是对底层DB的抽象封装，将DB的基本操作事务封装成统一接口，当前DB默认使用rocksdb。
 
 #### Ceph OSD中使用了RockDB
 OSD的底层存储引擎BlueStore是基于RockDB开发的。
 
-![BlueStore逻辑架构](images/bluestore.png)
+![BlueStore逻辑架构](/assets/ceph/bluestore.png)
 
 BlueStore的逻辑架构如上图所示，模块的划分都还比较清晰，我们来看下各模块的作用：
 
