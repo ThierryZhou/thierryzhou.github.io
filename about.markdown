@@ -11,3 +11,7 @@ permalink: /about/
 1. 分享kubernetes、ceph以及linux内核与存储和进程管理相关的技术总结
 2. 计划写一点kubernetes和ceph组件的源码解析。
 3. 最后会把以前工作的过程中碰到的kubernetes和ceph相关的FAQ分享出来。
+4. 准备面试过程中会总结一下面经留作回顾。
+
+  在这个博客是基于Github Pages搭建，可以在项目的issue里面给我浏览，项目地址: https://github.com/ThierryZhou/thierryzhou.github.io/issues
+  我的博客即将同步至腾讯云开发者社区，邀请大家一同入驻：https://cloud.tencent.com/developer/support-plan?invite_code=2z8tkui41zuo4

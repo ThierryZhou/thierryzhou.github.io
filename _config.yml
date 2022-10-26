@@ -35,6 +35,13 @@ plugins:
 header_pages:
   - about.markdown
   - docs/ceph.md
+  - docs/kubernetes.md
+
+kramdown:
+  syntax_highlighter: rouge
+  input: GFM
+  auto_ids: true
+  toc_levels: 1..3
 
 # Exclude from processing.
 # The following items will not be processed, by default.
