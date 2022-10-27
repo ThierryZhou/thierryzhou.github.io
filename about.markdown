@@ -1,6 +1,6 @@
 ---
 layout: page
-title: About
+title: 关于我
 permalink: /about/
 ---
   我是一个从事编程工作十年的老程序员，工作以来做过PDM系统、安防管理系统、视频应用服务，

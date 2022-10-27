@@ -1,3 +1,9 @@
+---
+layout: page
+title: CephFAQ
+permalink: /ceph/
+---
+
 # MDS JOURNALING
 ## CEPHFS METADATA POOL
 
