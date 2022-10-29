@@ -22,3 +22,8 @@ permalink: /docs/
 
 ## GPU虚拟化
 [共享GPU](docs/GPU多场景混部介绍.pdf)
+
+
+## 源码分析
+[kubelet源码分析](docs/../kubernetes/codes/kubelet源码分析.md)
+
