@@ -55,7 +55,7 @@ Kubernetes：
 
 ## Kubernetes 架构
 
-![Kubernetes 架构图](/assets/kubernetes/kubelet.png)
+![Kubernetes 架构图](/assets/kubernetes/kubernetes.png)
 
 ### 控制平面组件（Control Plane Components）
 

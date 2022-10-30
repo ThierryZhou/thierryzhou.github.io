@@ -47,5 +47,5 @@ ceph 存储集群从 Ceph 客户端接收数据——不管是来自 Ceph 块�
 
 
 
-## Reference
+## 参考
 
