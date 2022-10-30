@@ -4,21 +4,15 @@ title: Kubernetes专题
 permalink: /docs/
 ---
 
-### CSI Plugin
+#### [Kubernetes简介](kubernetes/Kubernetes简介.md)
 
-[CSI Plugin](kubernetes/CSIPlugin.md)
+#### [CSI Plugin](kubernetes/CSIPlugin.md)
 
-### Device Plugin
+#### [Device Plugin](kubernetes/DevicePlugin.md)
 
-[Device Plugin](kubernetes/DevicePlugin.md)
+#### [Custom Controller](kubernetes/CustomController.md)
 
-### Custom Controller
-
-[Custom Controller](kubernetes/CustomController.md)
-
-### Custom Scheduler
-
-[Custom Scheduler](kubernetes/CustomScheduler.md)
+#### [Custom Scheduler](kubernetes/CustomScheduler.md)
 
 ## GPU虚拟化
 [共享GPU](docs/GPU多场景混部介绍.pdf)

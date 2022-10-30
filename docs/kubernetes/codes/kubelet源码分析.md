@@ -625,6 +625,4 @@ func (kl *Kubelet) syncPod(ctx context.Context, updateType kubetypes.SyncPodType
 	return false, nil
 }
 ```
-经过上一步 Pod 事件的生产与消费传递，PodWorkers 会将事件转化为 gRPC client 请求，然后调用 dockershim gRPC server，进行 PodSandbox、infra-container（也叫 pause 容器）的创建。
-
-接着，会调用 CNI 接口 SetUpPod 进行相关网络配置与启动，此时建立起来的容器网络，就可以直接用于之后创建的业务容器如 initContainers、containers 进行共享网络。
+Pod创建完成后接着Kubelet会调用 CNI 接口 SetUpPod 进行相关网络配置与启动，此时建立起来的容器网络，就可以直接用于之后创建的业务容器如 initContainers、containers 进行共享网络。
