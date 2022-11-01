@@ -360,7 +360,7 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 	}
 }
 ```
-syncLoopIteration 每次从 channel 中取出一个事件，进行 Pod 同步 
+syncLoopIteration 每次从 channel 中取出一个事件，进行 Pod 同步。经过一系列的调用后最终程序进入 SyncPod 函数。
 ```go
 func (m *kubeGenericRuntimeManager) SyncPod(pod *v1.Pod, podStatus *kubecontainer.PodStatus, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff) (result kubecontainer.PodSyncResult) {
 	// 1: 计算 sandbox and container 的改变。

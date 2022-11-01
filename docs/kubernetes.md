@@ -10,9 +10,9 @@ permalink: /docs/
 
 #### [Device Plugin](kubernetes/DevicePlugin.md)
 
-#### [Custom Controller](kubernetes/CustomController.md)
+#### [Kubernetes Controller](kubernetes/KubernetesController.md)
 
-#### [Custom Scheduler](kubernetes/CustomScheduler.md)
+#### [Kubernetes Scheduler](kubernetes/KubernetesScheduler.md)
 
 ## GPU虚拟化
 [共享GPU](docs/GPU多场景混部介绍.pdf)
