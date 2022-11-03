@@ -6,7 +6,7 @@ permalink: /docs/
 
 #### [Kubernetes简介](kubernetes/Kubernetes简介.md)
 
-#### [CSI Plugin](kubernetes/CSIPlugin.md)
+#### [Kubernetes Storage](kubernetes/KubernetesStorage.md)
 
 #### [Device Plugin](kubernetes/DevicePlugin.md)
 
