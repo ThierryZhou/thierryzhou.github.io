@@ -55,15 +55,15 @@ LIBRADOS： Ceph 供的外部访问的对象存储 API，允许客户端通过�
 用户可以基于自己的业务需要直接 LIBRADOS API 的基础上，开发自己需要的存储业务。社区在 LIBRADOS API 开发了三种成熟的存储产品：块存储、分布式文件存储系统、对象存储。
 
 ### RADOSGW(Rados Gateway)
-基于LIBRADOS API构建的兼容了 s3 和 Swift 协议的 RESTful 网关
+基于LIBRADOS API构建的兼容了 s3 和 Swift 协议的 RESTful 网关。
 ![rgw](/assets/ceph/rgw-stack.png)
 
 ### RBD(Rados Block Device)
-基于LIBRADOS API构建的，使用了Linux内核client和QEMU/KVM驱动程序的分布式块存储设备
+基于LIBRADOS API构建的，使用了Linux内核client和QEMU/KVM驱动程序的分布式块存储设备。
 ![rbd](/assets/ceph/rbd-stack.png)
 
 ### CEPHFS(Ceph FileSystem)
-基于LIBRADOS API构建的，符合POSIX标准的分布式文件系统
+基于LIBRADOS API构建的，符合POSIX标准的分布式文件系统。Ceph 文件系统 需要至少指定一个metadata存储池和一个data存储池，并且Ceph 文件系统 需要集群至少有一个Metadata服务。
 ![Cephfs](/assets/ceph/cephfs-stack.png)
 
 ### Ceph逻辑组件
@@ -115,10 +115,6 @@ https://docs.ceph.com/en/quincy/cephadm/#cephadm
 
 如果你希望你的集群运行在Kubernetes中，运行在云服务器上，可以使用rook-ceph。  
 https://rook.io/docs/rook/v1.10/Getting-Started/intro/
-
-## CephFS是什么
-
-Ceph 文件系统（ Ceph FS ）是个 POSIX 兼容的文件系统，它使用 Ceph 存储集群来存储数据。Ceph 文件系统 需要至少指定一个metadata存储池和一个data存储池，并且Ceph 文件系统 需要集群至少有一个Metadata服务。
 
 ## 参考
 - [1] [Ceph官方文档](https://docs.ceph.com/)  
