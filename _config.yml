@@ -19,46 +19,204 @@
 # in the templates via {{ site.myvariable }}.
 domain: thierryzhou.github.io
 
-title: 周辉的技术博客
-email: zhouhui295@163.com
-description: >- # this means to ignore newlines until "baseurl:"
-  我是一个从事编程工作十年的老程序员，2019年来到互联网行业开始做云原生开发，开始研究存储系统。
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "https://thierryzhou.github.io" # the base hostname & protocol for your site, e.g. http://example.com
-github_username:  ThierryZhou
-
 # Build settings
-theme: minima
-plugins:
-  - jekyll-feed
+theme                    : minimal-mistakes-jekyll
+minimal_mistakes_skin    : "default" # "air", "aqua", "contrast", "dark", "dirt", "neon", "mint", "plum", "sunrise"
 
-header_pages:
-  - about.markdown
-  - docs/ceph.md
-  - docs/kubernetes.md
+# Site Settings
+locale                   : "zh-CN"
+title                    : "技术博客"
+title_separator          : "-"
+subtitle                 : # site tagline that appears below site title in masthead
+name                     : "Thierry Zhou"
+email                    : zhouhui295@163.com
+description              : >- # this means to ignore newlines until "baseurl:"
+  我是一个从事编程工作十年的老程序员，2019年来到互联网行业开始做云原生开发，开始研究存储系统。
+url                      : "https://thierryzhou.github.io" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl                  : "" # the subpath of your site, e.g. "/blog"
+github_username:  ThierryZhou
+repository               : "ThierryZhou/thierryzhou.github.io" # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
+teaser                   : # path of fallback teaser image, e.g. "/assets/images/500x300.png"
+logo                     : # path of logo image to display in the masthead, e.g. "/assets/images/88x88.png"
+masthead_title           : # overrides the website title displayed in the masthead, use " " for no title
+breadcrumbs              : true # true, false (default)
+words_per_minute         : 200
 
+# Site Author
+author:
+  name        : "Thierry Zhou"
+  bio         : "互联网老程序员云原生、云存储技术分享"
+  avatar      : "/assets/images/avatar.jpg"
+  location    : "Hangzhou, CN"
+  links:
+    - label: "Email"
+      icon: "fas fa-fw fa-envelope-square"
+      url: "mailto:zhouhui295@163.com"
+    - label: "Website"
+      icon: "fas fa-fw fa-link"
+      url: "https://thierryzhou.github.io"
+
+# Reading Files
+include:
+  - .htaccess
+  - _pages
+exclude:
+  - "*.sublime-project"
+  - "*.sublime-workspace"
+  - vendor
+  - .asset-cache
+  - .bundle
+  - .jekyll-assets-cache
+  - .sass-cache
+  - assets/js/plugins
+  - assets/js/_main.js
+  - assets/js/vendor
+  - Capfile
+  - CHANGELOG
+  - config
+  - Gemfile
+  - Gruntfile.js
+  - gulpfile.js
+  - LICENSE
+  - log
+  - node_modules
+  - package.json
+  - package-lock.json
+  - Rakefile
+  - README
+  - tmp
+  - /docs # ignore Minimal Mistakes /docs
+  - /test # ignore Minimal Mistakes /test
+keep_files:
+  - .git
+  - .svn
+encoding: "utf-8"
+markdown_ext: "markdown,mkdown,mkdn,mkd,md"
+
+# Conversion
+markdown: kramdown
+highlighter: rouge
+lsi: false
+excerpt_separator: "\n\n"
+incremental: false
+
+# Markdown Processing
 kramdown:
-  syntax_highlighter: rouge
   input: GFM
+  hard_wrap: false
   auto_ids: true
-  toc_levels: 1..3
+  footnote_nr: 1
+  entity_output: as_char
+  toc_levels: 1..6
+  smart_quotes: lsquo,rsquo,ldquo,rdquo
+  enable_coderay: false
 
-# Exclude from processing.
-# The following items will not be processed, by default.
-# Any item listed under the `exclude:` key here will be automatically added to
-# the internal "default list".
-#
-# Excluded items can be processed by explicitly listing the directories or
-# their entries' file path in the `include:` list.
-#
-# exclude:
-#   - .sass-cache/
-#   - .jekyll-cache/
-#   - gemfiles/
-#   - Gemfile
-#   - Gemfile.lock
-#   - node_modules/
-#   - vendor/bundle/
-#   - vendor/cache/
-#   - vendor/gems/
-#   - vendor/ruby/
+# Collections
+collections:
+  ceph:
+    output: true
+    permalink: /:collection/:path/
+  kubernetes:
+    output: true
+    permalink: /:collection/:path/
+
+# Sass/SCSS
+sass:
+  sass_dir: _sass
+  style: compressed # https://sass-lang.com/documentation/file.SASS_REFERENCE.html#output_style
+
+# Outputting
+permalink: /:categories/:title/
+paginate: 5 # amount of posts to show
+paginate_path: /page:num/
+timezone: Asia/Shanghai # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+# Plugins (previously gems:)
+plugins:
+  - jekyll-paginate
+  - jekyll-sitemap
+  - jekyll-gist
+  - jekyll-feed
+  - jekyll-include-cache
+
+# mimic GitHub Pages with --safe
+whitelist:
+  - jekyll-paginate
+  - jekyll-sitemap
+  - jekyll-gist
+  - jekyll-feed
+  - jekyll-include-cache
+
+# Archives
+#  Type
+#  - GitHub Pages compatible archive pages built with Liquid ~> type: liquid (default)
+#  - Jekyll Archives plugin archive pages ~> type: jekyll-archives
+#  Path (examples)
+#  - Archive page should exist at path when using Liquid method or you can
+#    expect broken links (especially with breadcrumbs enabled)
+#  - <base_path>/tags/my-awesome-tag/index.html ~> path: /tags/
+#  - <base_path>/categories/my-awesome-category/index.html ~> path: /categories/
+#  - <base_path>/my-awesome-category/index.html ~> path: /
+category_archive:
+  type: liquid
+  path: /categories/
+tag_archive:
+  type: liquid
+  path: /tags/
+# https://github.com/jekyll/jekyll-archives
+# jekyll-archives:
+#   enabled:
+#     - categories
+#     - tags
+#   layouts:
+#     category: archive-taxonomy
+#     tag: archive-taxonomy
+#   permalinks:
+#     category: /categories/:name/
+#     tag: /tags/:name/
+
+
+# HTML Compression
+# - https://jch.penibelst.de/
+compress_html:
+  clippings: all
+  ignore:
+    envs: development
+
+sidebar:
+  - title: "Another Title"
+    text: "更多信息"
+    nav: sidebar-sample
+
+# Defaults
+defaults:
+  # _posts
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: single
+      author_profile: true
+      read_time: true
+      comments: # true
+      share: true
+      related: true
+  # _ceph
+  - scope:
+      path: ""
+      type: ceph
+    values:
+      layout: single
+      author_profile: true
+      share: true
+      related: true
+
+  # _kubernetes
+  - scope:
+      path: ""
+      type: kubernetes
+    values:
+      layout: single
+      author_profile: true
+      share: true
+      related: true

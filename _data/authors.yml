@@ -1,0 +1,12 @@
+# Authors
+Thierry Zhou:
+  name        : "Thierry Zhou"
+  bio         : "互联网老程序员云原生、云存储技术分享"
+  avatar      : "/assets/images/avatar.jpg"
+  links:
+    - label: "Email"
+      icon: "fas fa-fw fa-envelope-square"
+      url: "mailto:zhouhui295@163.com"
+    - label: "Website"
+      icon: "fas fa-fw fa-link"
+      url: "https://thierryzhou.github.io"
