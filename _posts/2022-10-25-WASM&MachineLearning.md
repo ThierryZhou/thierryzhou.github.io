@@ -2,6 +2,7 @@
 layout: single
 title:  "WASM和机器学习"
 date:   2022-10-25 11:00
+author_profile: false
 ---
 
 # WebAssembly和机器学习

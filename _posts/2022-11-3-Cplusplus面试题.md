@@ -1,134 +1,42 @@
 ---
 title:  "C++面试题"
 date:   2022-11-3 11:00
+author_profile: false
 ---
 ## C++ 基础
 
-1. 引用和指针有什么区别？
+1. 引用和指针有什么区别？  
 一般指的是某块内存的地址，通过这个地址，我们可以寻址到这块内存；而引用是一个变量的别名。指针可以为空，引用不能为空。
 
-2. #define, extern, static和const有什么区别？
+2. #define, extern, static和const有什么区别？  
 #define主要是用于定义宏，编译器编译时做相关的字符替换工作，主要用来增加代码可读性；const定义的数据在程序开始前就在全局变量区分配了空间，生命周期内其值不可修改；static修饰局部变量时，该变量便存放在静态数据区，其生命周期一直持续到整个程序执行结束，static修饰全局变量，全局变量在本源文件中被访问到，也可以在同一个工程的其它源文件中被访问；extern用在变量或者函数的声明前，用来说明“此变量/函数是在别处定义的，要在此处引用”。
 
-3. 静态链接和动态链接有什么区别？
+3. 静态链接和动态链接有什么区别？  
 静态链接，无论缺失的地址位于其它目标文件还是链接库，链接库都会逐个找到各目标文件中缺失的地址。采用此链接方式生成的可执行文件，可以独立载入内存运行；  
 动态链接，链接器先从所有目标文件中找到部分缺失的地址，然后将所有目标文件组织成一个可执行文件。如此生成的可执行文件，仍缺失部分函数和变量的地址，待文件执行时，需连同所有的链接库文件一起载入内存，再由链接器完成剩余的地址修复工作，才能正常执行。
 
-4. 变量的声明和定义有什么区别
+4. 变量的声明和定义有什么区别  
 变量的定义：用于为变量分配存储空间，还可以为变量指定初始值。在一个程序中，变量有且仅有一个定义。  
 变量的声明：用于向程序表明变量的类型和名字。程序中变量可以声明多次，但只能定义一次。   
 
-5. strcmp, strlen, strcpy等函数的源码
-```c
-int
-STRCMP (const char *p1, const char *p2)
-{
-  const unsigned char *s1 = (const unsigned char *) p1;
-  const unsigned char *s2 = (const unsigned char *) p2;
-  unsigned char c1, c2;
-  do
-    {
-      c1 = (unsigned char) *s1++;
-      c2 = (unsigned char) *s2++;
-      if (c1 == '\0')
-	return c1 - c2;
-    }
-  while (c1 == c2);
-  return c1 - c2;
-}
-
-char *
-STRCPY (char *dest, const char *src)
-{
-  return memcpy (dest, src, strlen (src) + 1);
-}
-
-size_t
-STRLEN (const char *str)
-{
-  const char *char_ptr;
-  const unsigned long int *longword_ptr;
-  unsigned long int longword, himagic, lomagic;
-  /* Handle the first few characters by reading one character at a time.
-     Do this until CHAR_PTR is aligned on a longword boundary.  */
-  for (char_ptr = str; ((unsigned long int) char_ptr
-			& (sizeof (longword) - 1)) != 0;
-       ++char_ptr)
-    if (*char_ptr == '\0')
-      return char_ptr - str;
-  /* All these elucidatory comments refer to 4-byte longwords,
-     but the theory applies equally well to 8-byte longwords.  */
-  longword_ptr = (unsigned long int *) char_ptr;
-  /* Bits 31, 24, 16, and 8 of this number are zero.  Call these bits
-     the "holes."  Note that there is a hole just to the left of
-     each byte, with an extra at the end:
-     bits:  01111110 11111110 11111110 11111111
-     bytes: AAAAAAAA BBBBBBBB CCCCCCCC DDDDDDDD
-     The 1-bits make sure that carries propagate to the next 0-bit.
-     The 0-bits provide holes for carries to fall into.  */
-  himagic = 0x80808080L;
-  lomagic = 0x01010101L;
-  if (sizeof (longword) > 4)
-    {
-      /* 64-bit version of the magic.  */
-      /* Do the shift in two steps to avoid a warning if long has 32 bits.  */
-      himagic = ((himagic << 16) << 16) | himagic;
-      lomagic = ((lomagic << 16) << 16) | lomagic;
-    }
-  if (sizeof (longword) > 8)
-    abort ();
-  /* Instead of the traditional loop which tests each character,
-     we will test a longword at a time.  The tricky part is testing
-     if *any of the four* bytes in the longword in question are zero.  */
-  for (;;)
-    {
-      longword = *longword_ptr++;
-      if (((longword - lomagic) & ~longword & himagic) != 0)
-	{
-	  /* Which of the bytes was the zero?  If none of them were, it was
-	     a misfire; continue the search.  */
-	  const char *cp = (const char *) (longword_ptr - 1);
-	  if (cp[0] == 0)
-	    return cp - str;
-	  if (cp[1] == 0)
-	    return cp - str + 1;
-	  if (cp[2] == 0)
-	    return cp - str + 2;
-	  if (cp[3] == 0)
-	    return cp - str + 3;
-	  if (sizeof (longword) > 4)
-	    {
-	      if (cp[4] == 0)
-		return cp - str + 4;
-	      if (cp[5] == 0)
-		return cp - str + 5;
-	      if (cp[6] == 0)
-		return cp - str + 6;
-	      if (cp[7] == 0)
-		return cp - str + 7;
-	    }
-	}
-    }
-}
-```
-6. volatile 和 mutable 有什么作用
+5. volatile 和 mutable 有什么作用  
 在C++中，mutable是为了突破const的限制而设置的。被mutable修饰的变量，将永远处于可变的状态，即使在一个const函数中，甚至结构体变量或者类对象为const，其mutable成员也可以被修改。  
 象const一样，volatile是一个类型修饰符。volatile修饰的数据,编译器不可对其进行执行期寄存于寄存器的优化。这种特性,是为了满足多线程同步、中断、硬件编程等特殊需要。遇到这个关键字声明的变量，编译器对访问该变量的代码就不再进行优化，从而可以提供对特殊地址的直接访问。
 
-7. 全局变量和局部变量有什么区别？操作系统和编译器是怎么知道的？
+6. 全局变量和局部变量有什么区别？操作系统和编译器是怎么知道的？
 全局变量是整个程序都可访问的变量，生存期从程序开始到程序结束；局部变量存在于模块中(比如某个函数)，只有在模块中才可以访问，生存期从模块开始到模块结束。  
 全局变量分配在全局数据段，在程序开始运行的时候被加载。局部变量则分配在程序的堆栈中。因此，操作系统和编译器可以通过内存分配的位置来知道来区分全局变量和局部变量。
 
-8. shared_ptr, weak_ptr, unique_ptr分别是什么？
+7. shared_ptr, weak_ptr, unique_ptr分别是什么？
 unique_ptr 实现独占式拥有或严格拥有的智能指针，通过禁用拷贝构造和赋值的方式保证同一时间内只有一个智能指针可以指向该对象；shared_ptr增加了引用计数，每次有新的shared_ptr指向同一个资源时计数会增加，当计数为0时自动释放资源；构造新的weak_ptr指针不会增加shared_ptr的引用计数，是用来解决shared_ptr循环引用的问题。
 
-9. RAII是什么？
+8. RAII是什么？
 RAII技术的核心是获取完资源就马上交给资源管理。标准库中的智能指针和锁便是比较常用的RAII工具。RAII类需要慎重考虑资源拷贝的合理性。
 
-10. 右值引用有什么作用？
+9. 右值引用有什么作用？
 普通引用为左值引用，无法指向右值，但是const左值引用可以指向右值；右值引用指向的是右值，本质上也是把右值提升为一个左值，并定义一个右值引用通过std::move指向该左值。右值引用和std::move被广泛用于在STL和自定义类中实现移动语义，避免拷贝，从而提升程序性能。 
 
-11. 函数重载和函数重写
+10. 函数重载和函数重写
 重写（覆盖）的规则：
 1、重写方法的参数列表必须完全与被重写的方法的相同,否则不能称其为重写而是重载。  
 2、重写方法的访问修饰符一定要大于被重写方法的访问修饰符（public>protected>default>private）。  
@@ -141,11 +49,11 @@ RAII技术的核心是获取完资源就马上交给资源管理。标准库中�
 2、不能通过访问权限、返回类型、抛出的异常进行重载。  
 3、方法的异常类型和数目不会对重载造成影响。
 
-12. C++的顶层const和底层const？
+11. C++的顶层const和底层const？
 顶层 const 表示指针本身是个常量；
 底层 const 表示指针所指的对象是一个常量。
 
-13. 拷贝初始化、直接初始化、列表初始化?
+12. 拷贝初始化、直接初始化、列表初始化?
 直接初始化实际上是要求编译器使用普通的函数匹配来选择与我们提供的参数最匹配的构造函数。  
 拷贝初始化实际上是要求编译器将右侧运算对象拷贝到正在创建的对象中，通常用拷贝构造函数来完成。  
 C++11标准中{}的初始化方式是对聚合类型的初始化，是以拷贝的形式来赋值的。

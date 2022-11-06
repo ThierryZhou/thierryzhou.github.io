@@ -2,6 +2,7 @@
 layout: single
 title:  "GPU 虚拟化"
 date:   2022-10-24 12:00
+author_profile: false
 ---
 
 # GPU 多场景混部介绍
