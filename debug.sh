@@ -1,0 +1,1 @@
+bundle exec jekyll serve --trace --watch --config _config.dev.yml

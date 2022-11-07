@@ -20,8 +20,7 @@
 domain: thierryzhou.github.io
 
 # Build settings
-# theme                    : minimal-mistakes-jekyll
-remote_theme             : minimal-mistakes-jekyll
+theme                    : minimal-mistakes-jekyll
 minimal_mistakes_skin    : "default" # "air", "aqua", "contrast", "dark", "dirt", "neon", "mint", "plum", "sunrise"
 
 # Site Settings

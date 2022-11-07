@@ -1,8 +1,7 @@
 ---
-title: 面试题合集
 layout: collection
-permalink: /interviews/
-collection: interviews
-entries_layout: grid
-classes: wide
+title: Interview专题
+permalink: /interview/
+collection: interview
+author_profile: false
 ---

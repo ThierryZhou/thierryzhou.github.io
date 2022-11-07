@@ -1,7 +1,7 @@
 ---
 layout: collection
-title: "Ceph 专题"
+title: "Ceph专题"
 permalink: /ceph/
 collection: ceph
-author_profile: true
+author_profile: false
 ---

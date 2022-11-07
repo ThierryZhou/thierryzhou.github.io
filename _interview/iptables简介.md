@@ -1,8 +1,6 @@
 ---
 title:  "iptables 简介"
-date:   2022-11-7 11:00
 tag:    interview
-author_profile: false
 ---
 
 iptables是运行在用户空间的应用软件，通过控制Linux内核netfilter模块，来管理网络数据包的处理和转发。通常iptables需要内核模块支持才能运行，此处相应的内核模块通常是Xtables。netfilter/iptables 组成Linux平台下的包过滤防火墙，可以代替昂贵的商业防火墙解决方案，完成封包过滤、封包重定向和网络地址转换（NAT）等功能。

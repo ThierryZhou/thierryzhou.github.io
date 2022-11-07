@@ -1,7 +1,6 @@
 ---
 title:  "C++面试题"
-date:   2022-11-7 11:00
-author_profile: false
+tag:    interview
 ---
 ## C++ 基础
 

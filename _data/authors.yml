@@ -10,3 +10,6 @@ Thierry Zhou:
     - label: "Website"
       icon: "fas fa-fw fa-link"
       url: "https://thierryzhou.github.io"
+    - label: "Github"
+      icon: "fas fa-fw fa-github-square"
+      url: "https://github.com/ThierryZhou"

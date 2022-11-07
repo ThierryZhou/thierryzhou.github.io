@@ -1,8 +1,6 @@
 ---
 title:  "Golang面试题"
-date:   2022-11-7 11:00
 tag:    interview
-author_profile: false
 ---
 ### 内存管理
 1. new 和 make 的区别
