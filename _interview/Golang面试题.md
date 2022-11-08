@@ -28,11 +28,11 @@ slice 的背后数组被重新分配了 因为 append 时可能会超出其容�
 3. golang内存管理
 Go语言的内存分配器采用了跟 tcmalloc 库相同的多级缓存分配模型，该模型将引入了线程缓存（Thread Cache）、中心缓存（Central Cache）和页堆（Page Heap）三个组件分级管理内存。
 
-![多级缓存](/assets/posts/multiLevelCache.png)
+![多级缓存](  /assets/image/posts/multiLevelCache.png)
 
 线程缓存属于每一个独立的线程，它能够满足线程上绝大多数的内存分配需求，因为不涉及多线程，所以也不需要使用互斥锁来保护内存，这能够减少锁竞争带来的性能损耗。当线程缓存不能满足需求时，运行时会使用中心缓存作为补充解决小对象的内存分配，在遇到大对象时，内存分配器会选择页堆直接分配大内存。
 
-![golang内存模型](/assets/posts/go-memory.webp)
+![golang内存模型](  /assets/image/posts/go-memory.webp)
 
 在 Golang 中, mcache , mspan , mcentral 和 mheap 是内存管理的四大组件，mspan是内管管理的基本单元，由mcache充当”线程缓存“，由mcentral充当”中心缓存“，由mheap充当“页堆”。下级组件内存不够时向上级申请一个或多个mspan。
 根据对象的大小不同，内部会使用不同的内存分配机制，详细参考函数 mallocgo()。  
@@ -42,7 +42,7 @@ Go语言的内存分配器采用了跟 tcmalloc 库相同的多级缓存分配�
 
 golang中的内存申请流程如下图所示。
 
-![golang内存管理](/assets/posts/go-memory-stack.webp)
+![golang内存管理](  /assets/image/posts/go-memory-stack.webp)
 
 大约有 100 种内存块类别，每一个类别都有自己对象的空闲链表。小于 32KB 的内存分配被向上取整到对应的尺寸类别，从相应的空闲链表中分配。一页内存只可以被分裂成同一种尺寸类别的对象，然后由空间链表分配管理器。
 
@@ -164,18 +164,40 @@ type Map struct {
 ```
 互斥量 mu 保护 read 和 dirty。
 
-read 是 atomic.Value 类型，可以并发地读。但如果需要更新 read，则需要加锁保护。对于 read 中存储的 entry 字段，可能会被并发地 CAS 更新。但是如果要更新一个之前已被删除的 entry，则需要先将其状态从 expunged 改为 nil，再拷贝到 dirty 中，然后再更新。
+read 是 atomic.Value 类型，atomic库提供并发地读的能力，无需上锁。但如果需要更新 read，则需要加锁保护。对于 read 中存储的 entry 字段，可能会被并发地 CAS 更新。但是如果要更新一个之前已被删除的 entry，则需要先将其状态从 expunged 改为 nil，再拷贝到 dirty 中，然后再更新。
 
 dirty 是一个非线程安全的原始 map。包含新写入的 key，并且包含 read 中的所有未被删除的 key。这样，可以快速地将 dirty 提升为 read 对外提供服务。如果 dirty 为 nil，那么下一次写入时，会新建一个新的 dirty，这个初始的 dirty 是 read 的一个拷贝，但除掉了其中已被删除的 key。
 
 每当从 read 中读取失败，都会将 misses 的计数值加 1，当加到一定阈值以后，需要将 dirty 提升为 read，以期减少 miss 的情形。
 
-8. goroutine的锁机制了解过吗？Mutex有哪几种模式？Mutex 锁底层如何实现
-互斥锁的加锁是靠 sync.Mutex.Lock 方法完成的, 当锁的状态是 0 时，将 mutexLocked 位置成 1：
+8. golang中有哪几中锁？
+
+Mutex 互斥锁 和 RWMutex 读写锁。
+
+互斥锁
+
+state 是否加锁，唤醒，饥饿，WaiterShift（竞争锁失败后在堆树休眠的协程个数）
+sema pv操作
+得到锁就可以做业务了，别人就拿不到这把锁了
+竞争Locked，得不到的会多次自旋操作（执行空语句）
+Lock解开后唤醒堆树中一个协程
+spin自旋
+
+饥饿模式
+当前协程等待锁时间超过1s，进入饥饿模式
+该模式中，不自旋，新来的协程获取不到Lock直接sema休眠
+被唤醒的协程直接获取锁
+没有协程在sema中回到正常模式
+用defer处理锁比较好，防止panic后锁得不到释放
+
 ```go
-// Lock locks m.
-// If the lock is already in use, the calling goroutine
-// blocks until the mutex is available.
+// 互斥锁
+type Mutex struct {
+	state int32         // 锁状态
+	sema  uint32        // 锁信号
+}
+
+// 上锁过程
 func (m *Mutex) Lock() {
     // Fast path: grab unlocked mutex.
     if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
@@ -187,7 +209,56 @@ func (m *Mutex) Lock() {
     // Slow path (outlined so that the fast path can be inlined)
     m.lockSlow()
 }
+
+// 解锁过程
+func (m *Mutex) Unlock() {
+	if race.Enabled {
+		_ = m.state
+		race.Release(unsafe.Pointer(m))
+	}
+
+	// Fast path: drop lock bit.
+	new := atomic.AddInt32(&m.state, -mutexLocked)
+	if new != 0 {
+		// Outlined slow path to allow inlining the fast path.
+		// To hide unlockSlow during tracing we skip one extra frame when tracing GoUnblock.
+		m.unlockSlow(new)
+	}
+}
 ```
+
+读写锁
+RWMutex
+读取的过程希望加锁，只加RMutex就行
+（多个协程并发只读）
+
+读写锁原理
+读锁为共享锁，可以上许多个
+写锁在存在读锁的时刻是无法获取的
+写协程放到等待队列中，获取后取出
+已加读锁的情况下无法加写锁，读协程放到等待队列中
+
+RWMutex底层
+w 互斥锁作为写锁
+读，写sema （两个协程队列）
+readerCount 正值（正在读的协程）负值（加了写锁）
+readerWait 写锁应该等待读协程的个数
+
+读多写少的场景用RW锁带来的性能优势较高
+
+```go
+// 读写锁一共有3 个 sema，分别为 1.Mutex 中的 sema 2.writerSem 3.readerSem
+type RWMutex struct {
+	w           Mutex  // held if there are pending writers
+	writerSem   uint32 // 写信号，等待读操作完成
+	readerSem   uint32 // 读信号 等待写操作完成
+	readerCount int32  // 被挂起的读操作数量
+	readerWait  int32  // 等待被唤醒的读操作的数量
+}
+```
+
+9. Mutex有哪几种模式？
+
 Mutex：正常模式和饥饿模式
 
 在正常模式下，锁的等待者会按照先进先出的顺序获取锁。
@@ -201,6 +272,35 @@ Mutex：正常模式和饥饿模式
 如果一个 Goroutine 获得了互斥锁并且它在队列的末尾或者它等待的时间少于 1ms，那么当前的互斥锁就会被切换回正常模式。
 
 相比于饥饿模式，正常模式下的互斥锁能够提供更好地性能，饥饿模式的能避免 Goroutine 由于陷入等待无法获取锁而造成的高尾延时。
+
+10. goroutine的锁机制吗？
+
+atomic(原子操作) + semacquire/semrelease(PV 操作)
+
+sema锁（go锁底层），底下有个semaroot结构体
+信号锁 uint类型
+uint == 0 协程会加入到底层的平衡二叉树中执行gopark（）挂起其他协程释放锁时会拿出执行
+sema == 0 的时候会被当作普通的等待队列使用（极少当作锁来使用）
+获取锁uint-1 释放锁uint+1
+
+
+11. goroutine 同步如何实现？
+
+WG
+组协程等待
+底层 state3个uint成员数组（被等待协程，等待协程（放在sema中），sema队列）
+race调试用的信息
+wait（）
+等待协程+1 Add，Done（）被等待协程-1
+
+
+12. 如何检测锁异常？
+
+go vet 查看是否存在拷贝锁
+race 竞争检测
+go build - race
+升值加薪不会到20次的
+
 
 ## 其他
 Go:反射之用字符串函数名调用函数

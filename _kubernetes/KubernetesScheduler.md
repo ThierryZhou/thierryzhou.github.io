@@ -46,7 +46,7 @@ Kubernetes 调度器中大多数的调度功能，通过调度框架 (framework)
 
 下图显示了一个 Pod 的调度上下文以及调度框架公开的扩展点。 在此图片中，“过滤器”等同于“断言”，“评分”相当于“优先级函数”。
 
-![调度框架](/assets/kubernetes/scheduling-framework-extensions.png)
+![调度框架](  /assets/images/kubernetes/scheduling-framework-extensions.png)
 
 一个插件可以在多个扩展点处注册，以执行更复杂或有状态的任务。
 
@@ -278,7 +278,7 @@ func New(_ runtime.Object, _ framework.Handle) (framework.Plugin, error) {
 
 kube-scheduler的主流程如下图， kube-scheduler 初始化一个 informer 队列，存放未调度的 pod ；初始化一个 informer 缓存队列，存放拥有调度中间状态的pod、node等对象。实际执行调度任务的是sched.scheduleOne方法，它每次从未调度队列中娶取出一个 Pod ，经过预选与优选算法，最终选出一个最优 node ，上述步骤都成功则更新缓存队列并异步执行 bind 操作，也就是更新 pod 的 nodeName 字段，失败则进入抢占逻辑，至此一个 pod 的调度工作完成。
 
-![kube-scheduler](/assets/kubernetes/kube-scheduler.jpeg)
+![kube-scheduler](  /assets/images/kubernetes/kube-scheduler.jpeg)
 
 看一下 kube-scheduler 入口函数的代码：
 ```go

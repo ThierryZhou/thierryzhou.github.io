@@ -134,7 +134,7 @@ sass:
 
 # Outputting
 permalink: /:categories/:title/
-paginate: 5 # amount of posts to show
+paginate: 10 # amount of posts to show
 paginate_path: /page:num/
 timezone: Asia/Shanghai # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
@@ -206,7 +206,7 @@ defaults:
       author_profile: true
       read_time: true
       comments: # true
-      share: true
+      share: false
       related: true
   # _ceph
   - scope:
@@ -215,7 +215,7 @@ defaults:
     values:
       layout: single
       author_profile: true
-      share: true
+      share: false
       related: true
   # _kubernetes
   - scope:
@@ -224,7 +224,7 @@ defaults:
     values:
       layout: single
       author_profile: true
-      share: true
+      share: false
       related: true
   # _interview
   - scope:
@@ -233,7 +233,7 @@ defaults:
     values:
       layout: single
       author_profile: true
-      share: true
+      share: false
       related: true
 
 baidu-analysis: a213899914b9accc488809dfb0101307

@@ -61,7 +61,7 @@ Kubernetes：
 
 ## Kubernetes 架构
 
-![Kubernetes 架构图](/assets/kubernetes/kubernetes.png)
+![Kubernetes 架构图](  /assets/images/kubernetes/kubernetes.png)
 
 ### 控制平面组件（Control Plane Components）
 
@@ -79,7 +79,7 @@ Kubernetes：
 
 ## Kubernetes 组件
 
-![Kubernetes 组件](/assets/kubernetes/components-of-kubernetes.png)
+![Kubernetes 组件](  /assets/images/kubernetes/components-of-kubernetes.png)
 
 #### kube-apiserver
 
