@@ -3,13 +3,13 @@ title:  "Golang面试题"
 tag:    interview
 ---
 ### 内存管理
-1. new 和 make 的区别
+##### 1. new 和 make 的区别
 Go分为数据类型分为值类型和引用类型，其中值类型是 int、float、string、bool、struct和array，它们直接存储值，分配栈的内存空间，它们被函数调用完之后会释放；引用类型是 slice、map、chan和值类型对应的指针 它们存储是一个地址（或者理解为指针）,指针指向内存中真正存储数据的首地址，内存通常在堆分配，通过GC回收。  
     区别
 new 的参数要求传入一个类型，而不是一个值，它会申请该类型的内存大小空间，并初始化为对应的零值，返回该指向类型空间的一个指针。  
 make 也用于内存分配，但它只用于引用对象 slice、map、channel的内存创建，返回的类型是类型本身。
 
-2. 内存逃逸分析
+##### 2. 内存逃逸分析
 Go的逃逸分析是一种确定指针动态范围的方法，可以分析程序在哪些可以访问到指针，它涉及到指针分析和状态分析。
 
 当一个变量（或对象）在子程序中被分配时，一个指向变量的指针可能逃逸到其它程序，或者去调用子程序。 如果使用尾递归优化（通常函数式编程是需要的），对象也可能逃逸到被调用程序中。如果一个子程序分配一个对象并返回一个该对象的指针，该对象可能在程序中的任何一个地方都可以访问。
@@ -25,14 +25,14 @@ Go的逃逸分析是一种确定指针动态范围的方法，可以分析程序
 slice 的背后数组被重新分配了 因为 append 时可能会超出其容量( cap )。 slice 初始化的地方在编译时是可以知道的，它最开始会在栈上分配。如果切片背后的存储要基于运行时的数据进行扩充，就会在堆上分配。
 在 interface 类型上调用方法 在 interface 类型上调用方法都是动态调度的 —— 方法的真正实现只能在运行时知道。想像一个 io.Reader 类型的变量 r , 调用 r.Read(b) 会使得 r 的值和切片b 的背后存储都逃逸掉，所以会在堆上分配。
 
-3. golang内存管理
+##### 3. golang内存管理
 Go语言的内存分配器采用了跟 tcmalloc 库相同的多级缓存分配模型，该模型将引入了线程缓存（Thread Cache）、中心缓存（Central Cache）和页堆（Page Heap）三个组件分级管理内存。
 
-![多级缓存](  /assets/image/posts/multiLevelCache.png)
+![多级缓存](/assets/images/posts/multiLevelCache.png)
 
 线程缓存属于每一个独立的线程，它能够满足线程上绝大多数的内存分配需求，因为不涉及多线程，所以也不需要使用互斥锁来保护内存，这能够减少锁竞争带来的性能损耗。当线程缓存不能满足需求时，运行时会使用中心缓存作为补充解决小对象的内存分配，在遇到大对象时，内存分配器会选择页堆直接分配大内存。
 
-![golang内存模型](  /assets/image/posts/go-memory.webp)
+![golang内存模型](/assets/images/posts/go-memory.webp)
 
 在 Golang 中, mcache , mspan , mcentral 和 mheap 是内存管理的四大组件，mspan是内管管理的基本单元，由mcache充当”线程缓存“，由mcentral充当”中心缓存“，由mheap充当“页堆”。下级组件内存不够时向上级申请一个或多个mspan。
 根据对象的大小不同，内部会使用不同的内存分配机制，详细参考函数 mallocgo()。  
@@ -42,26 +42,26 @@ Go语言的内存分配器采用了跟 tcmalloc 库相同的多级缓存分配�
 
 golang中的内存申请流程如下图所示。
 
-![golang内存管理](  /assets/image/posts/go-memory-stack.webp)
+![golang内存管理](/assets/images/posts/go-memory-stack.webp)
 
 大约有 100 种内存块类别，每一个类别都有自己对象的空闲链表。小于 32KB 的内存分配被向上取整到对应的尺寸类别，从相应的空闲链表中分配。一页内存只可以被分裂成同一种尺寸类别的对象，然后由空间链表分配管理器。
 
 ## GC
-1. 如果 goroutine 一直占用资源怎么办，GMP模型怎么解决这个问题
+##### 1. 如果 goroutine 一直占用资源怎么办，GMP模型怎么解决这个问题
 如果有一个goroutine一直占用资源的话，GMP模型会从正常模式转为饥饿模式，通过信号协作强制处理在最前的 goroutine 去分配使用
 
-2. 如果若干个线程发生OOM，会发生什么？Goroutine中内存泄漏的发现与排查？项目出现过OOM吗，怎么解决
+##### 2. 如果若干个线程发生OOM，会发生什么？Goroutine中内存泄漏的发现与排查？项目出现过OOM吗，怎么解决?
 线程
 如果线程发生OOM，也就是内存溢出，发生OOM的线程会被kill掉，其它线程不受影响。
 
-3. Goroutine中内存泄漏的发现与排查
+##### 3. Goroutine中内存泄漏的发现与排查
 go中的内存泄漏一般都是goroutine泄露，就是goroutine没有被关闭，或者没有添加超时控制，让goroutine一只处于阻塞状态，不能被GC。在Go中内存泄露分为暂时性内存泄露和永久性内存泄露。
 
 暂时性内存泄露，string相比切片少了一个容量的cap字段，可以把string当成一个只读的切片类型。获取长string或者切片中的一段内容，由于新生成的对象和老的string或者切片共用一个内存空间，会导致老的string和切片资源暂时得不到释放，造成短暂的内存泄漏。
 
 永久性内存泄露，主要由goroutine永久阻塞而导致泄漏以及time.Ticker未关闭导致泄漏引起。
 
-4. Go的垃圾回收算法
+##### 4. Go的垃圾回收算法
 Go 现阶段采用的是通过三色标记清除扫法与混合写屏障GC策略。其核心优化思路就是尽量使得 STW(Stop The World) 的时间越来越短。
 
 GC 的过程一共分为四个阶段：  
@@ -81,7 +81,7 @@ GC 的过程一共分为四个阶段：
   被添加的对象标记为灰色。
 
 ## 多线程
-1. GMP多线程模型
+##### 1. GMP多线程模型
 基于CSP并发模型开发了GMP调度器，其中  
 G (Goroutine) : 每个 Goroutine 对应一个 G 结构体，G 存储 Goroutine 的运行堆栈、状态以及任务函数。  
 M (Machine) : 对OS内核级线程的封装，数量对应真实的CPU数(真正干活的对象)。  
@@ -94,7 +94,7 @@ P (Processor): 逻辑处理器,即为G和M的调度对象，用来调度G和M之
 
 当M0返回时，它会尝试从其他线程中“偷”一个上下文过来，如果没有偷到，会把Goroutine放到Global runqueue中去，然后把自己放入线程缓存中。 上下文会定时检查Global runqueue。
 
-2. goroutine的优势
+##### 2. goroutine的优势
 上下文切换代价小：从GMP调度器可以看出，避免了用户态和内核态线程切换，所以上下文切换代价小
 内存占用少：线程栈空间通常是 2M，Goroutine 栈空间最小 2K；
 goroutine 什么时候发生阻塞
@@ -102,7 +102,7 @@ channel 在等待网络请求或者数据操作的IO返回的时候会发生阻�
 发生一次系统调用等待返回结果的时候
 goroutine进行sleep操作的时候
 
-3. goroutine的9种状态
+##### 3. goroutine的9种状态
   _Gidle：刚刚被分配并且还没有被初始化  
   _Grunnable：没有执行代码，没有栈的所有权，存储在运行队列中  
   _Grunning：可以执行代码，拥有栈的所有权，被赋予了内核线程 M 和处理器 P  
@@ -114,10 +114,10 @@ goroutine进行sleep操作的时候
   _Gscan：GC 正在扫描栈空间，没有执行代码，可以与其他状态同时存在  
 去抢占 G 的时候，会有一个自旋和非自旋的状态
 
-4. 线程和协程堆栈的内存大小
+##### 4. 线程和协程堆栈的内存大小
 线程一般是4M，协程一般是2K
 
-5. Go数据竞争怎么解决
+##### 5. Go数据竞争怎么解决
 Data Race 问题可以使用互斥锁解决，或者也可以通过CAS无锁并发解决
 
 中使用同步访问共享数据或者CAS无锁并发是处理数据竞争的一种有效的方法.
@@ -137,7 +137,7 @@ $ go install -race mypkg // 安装程序
 ```
 要想解决数据竞争的问题可以使用互斥锁sync.Mutex,解决数据竞争(Data race),也可以使用管道解决,使用管道的效率要比互斥锁高.
 
-6.chan的实现原理
+##### 6. chan的实现原理
 go的多线程实现采用CSP模型。各个线程独立顺序执行，两个goroutine间表面上没有耦合，而是采用channel作为其通信的媒介，达到线程间同步的目的。 channel 是一个用于同步和通信的有锁FIFO队列。
   写 channel 现象：  
 向nil channel写，会导致阻塞。  
@@ -153,7 +153,7 @@ go的多线程实现采用CSP模型。各个线程独立顺序执行，两个gor
 上面现象可以细分几种情况。如下表
 
 
-7. syn.Map的实现原理
+##### 7. syn.Map的实现原理
 ```go
 type Map struct {
     mu Mutex                        // 互斥量
@@ -170,7 +170,7 @@ dirty 是一个非线程安全的原始 map。包含新写入的 key，并且包
 
 每当从 read 中读取失败，都会将 misses 的计数值加 1，当加到一定阈值以后，需要将 dirty 提升为 read，以期减少 miss 的情形。
 
-8. golang中有哪几中锁？
+##### 8. golang中有哪几中锁？
 
 Mutex 互斥锁 和 RWMutex 读写锁。
 
@@ -257,7 +257,7 @@ type RWMutex struct {
 }
 ```
 
-9. Mutex有哪几种模式？
+##### 9. Mutex有哪几种模式？
 
 Mutex：正常模式和饥饿模式
 
@@ -273,7 +273,7 @@ Mutex：正常模式和饥饿模式
 
 相比于饥饿模式，正常模式下的互斥锁能够提供更好地性能，饥饿模式的能避免 Goroutine 由于陷入等待无法获取锁而造成的高尾延时。
 
-10. goroutine的锁机制吗？
+##### 10. goroutine的锁机制吗？
 
 atomic(原子操作) + semacquire/semrelease(PV 操作)
 
@@ -284,8 +284,31 @@ sema == 0 的时候会被当作普通的等待队列使用（极少当作锁来�
 获取锁uint-1 释放锁uint+1
 
 
-11. goroutine 同步如何实现？
+##### 11. goroutine 同步如何实现？
+```go
+// A WaitGroup waits for a collection of goroutines to finish.
+// The main goroutine calls Add to set the number of
+// goroutines to wait for. Then each of the goroutines
+// runs and calls Done when finished. At the same time,
+// Wait can be used to block until all goroutines have finished.
+//
+// A WaitGroup must not be copied after first use.
+//
+// In the terminology of the Go memory model, a call to Done
+// “synchronizes before” the return of any Wait call that it unblocks.
+type WaitGroup struct {
+	noCopy noCopy
 
+	// 64-bit value: high 32 bits are counter, low 32 bits are waiter count.
+	// 64-bit atomic operations require 64-bit alignment, but 32-bit
+	// compilers only guarantee that 64-bit fields are 32-bit aligned.
+	// For this reason on 32 bit architectures we need to check in state()
+	// if state1 is aligned or not, and dynamically "swap" the field order if
+	// needed.
+	state1 uint64
+	state2 uint32
+}
+```
 WG
 组协程等待
 底层 state3个uint成员数组（被等待协程，等待协程（放在sema中），sema队列）
@@ -294,7 +317,7 @@ wait（）
 等待协程+1 Add，Done（）被等待协程-1
 
 
-12. 如何检测锁异常？
+##### 12. 如何检测锁异常？
 
 go vet 查看是否存在拷贝锁
 race 竞争检测
@@ -302,32 +325,8 @@ go build - race
 升值加薪不会到20次的
 
 
-## 其他
-Go:反射之用字符串函数名调用函数
-```go
-package main
-
-import (
-    "fmt"
-    "reflect"
-)
-
-type Animal struct {
-}
-
-func (m *Animal) Eat() {
-    fmt.Println("Eat")
-}
-func main() {
-    animal := Animal{}
-    value := reflect.ValueOf(&animal)
-    f := value.MethodByName("Eat") //通过反射获取它对应的函数，然后通过call来调用
-    f.Call([]reflect.Value{})
-}
-```
-
 ## 网络
-1. Linux 下 epoll 多路复用技术？
+##### 1. Linux 下 epoll 多路复用技术？
 ```c
 #include <sys/epoll.h>
 
@@ -350,56 +349,154 @@ int close(int fd);
 使用双向链表缓存就绪的 socket，数量较少  
 只需要拷贝这个双向链表到用户空间，再遍历就行，注意这里也需要拷贝，没有共享内存
 
-1. Linux 下 golang 如何做到多路复用？
-Go 基于 I/O multiplexing 和 goroutine scheduler 构建了一个简洁而高性能的原生网络模型(基于 Go 的 I/O 多路复用 netpoller )。
+##### 2. Linux 下 golang 如何做到多路复用？
+Go 基于 I/O multiplexing(例如unix kqueue、linux epoll、windows iocp) 和 goroutine scheduler 构建了一个简洁而高性能的原生网络模型，一般也被称为 network poller。
 
-总结来说，所有的网络操作都以网络描述符 netFD 为中心实现。netFD 与底层 PollDesc 结构绑定，当在一个 netFD 上读写遇到 EAGAIN 错误时，就将当前 goroutine 存储到这个 netFD 对应的 PollDesc 中，同时调用 gopark 把当前 goroutine 给 park 住，直到这个 netFD 上再次发生读写事件，才将此 goroutine 给 ready 激活重新运行。显然，在底层通知 goroutine 再次发生读写等事件的方式就是 epoll/kqueue/iocp 等事件驱动机制。
+以 epoll 为例简单描述一下 network poller的工作流程，golang 调用 net.Listen 时，golang 会在 goroutine 中增加 netFD 描述，并调用 epoll 函数将 netFD 写入 epoll 内核事件表中；当 findRunable 会查询 epoll 内核事件表中的就绪事件，读取 netFD 信息并唤醒与 netFD 对应的 goroutine，处理完成后 goroutine 被丢如 process 调度队列的队尾。
+
+
+接下来是runtime中关于epoll wait 和 goprk 的封装：
 
 ```go
-func epoll(fd int) {
-    var event syscall.EpollEvent
-    //创建epoll实例文件描述符，不使用时需关闭以便内核销毁实例释放资源； size参数为内核fd队列大小，内核2.6.8后已升级为动态队列该参数意义不大，但值需大于0
-    epfd, e := syscall.EpollCreate(1)
+// Finds a runnable goroutine to execute.
+func findRunnable() (gp *g, inheritTime, tryWakeP bool) {
+    // ...
+    
+    // 如果这有什么逻辑上的竞争的话，此线程将在后面被 netpoll 阻塞
+	if netpollinited() && atomic.Load(&netpollWaiters) > 0 && atomic.Load64(&sched.lastpoll) != 0 {
+		if list := netpoll(0); !list.empty() { // non-blocking
+			gp := list.pop()
+			injectglist(&list)
+			casgstatus(gp, _Gwaiting, _Grunnable)
+			if trace.enabled {
+				traceGoUnpark(gp, 0)
+			}
+			return gp, false, false
+		}
+	}
 
-    if e != nil {
-        log.Println("epoll_create: ", e)
-        os.Exit(1)
-    }
-    defer syscall.Close(epfd)
-    //设置事件模式
-    event.Events = syscall.EPOLLIN
-    event.Fd = int32(fd) //设置监听描述符
-    //注册监听事件（epfd,事件动作,监听的fd,需监听的事件）
-    if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, &event); e != nil {
-        log.Println("epoll_ctl: ", e)
-        os.Exit(1)
-    }
-    epollWait(fd, epfd, event)
-}
+	// ...
 
-func epollWait(fd, epfd int, epollEvent syscall.EpollEvent) {
-    var events [10]syscall.EpollEvent
-    connect = &Connect{map[int]string{}}
-    for {
-        nevents, e := syscall.EpollWait(epfd, events[:], -1) //等待获取就绪事件
-        if e != nil {
-            log.Println("EpollWait: ", e)
-        }
-        for ev := 0; ev < nevents; ev++ {
-            event := events[ev].Events
-            efd := events[ev].Fd
-            // 处理连接
-            if int(efd) == fd && event == syscall.EPOLLIN {
-                handConn(fd, epfd, &epollEvent)
-            } else if event == syscall.EPOLLIN { // 可读
-                handMsg(epfd, int(efd))
-            }
-            // 可写
-            if events[ev].Events == syscall.EPOLLOUT {
-                // ...
-            }
-        }
-   }
+	// Poll network until next timer.
+	if netpollinited() && (atomic.Load(&netpollWaiters) > 0 || pollUntil != 0) && atomic.Xchg64(&sched.lastpoll, 0) != 0 {
+		atomic.Store64(&sched.pollUntil, uint64(pollUntil))
+		if _g_.m.p != 0 {
+			throw("findrunnable: netpoll with p")
+		}
+		if _g_.m.spinning {
+			throw("findrunnable: netpoll with spinning")
+		}
+		// 刷新
+		now = nanotime()
+		delay := int64(-1)
+		if pollUntil != 0 {
+			delay = pollUntil - now
+			if delay < 0 {
+				delay = 0
+			}
+		}
+		if faketime != 0 {
+			delay = 0
+		}
+
+        // delay != 0 时，线程被阻塞
+		list := netpoll(delay)
+		atomic.Store64(&sched.pollUntil, 0)
+		atomic.Store64(&sched.lastpoll, uint64(now))
+		if faketime != 0 && list.empty() {
+			stopm()
+			goto top
+		}
+        
+        // ... 省略 netpoll 无关代码
+	} else if pollUntil != 0 && netpollinited() {
+		pollerPollUntil := int64(atomic.Load64(&sched.pollUntil))
+		if pollerPollUntil == 0 || pollerPollUntil > pollUntil {
+			netpollBreak()
+		}
+	}
+
 }
 ```
 
+## 其他
+##### 1. Go:反射之用字符串函数名调用函数
+```go
+package main
+
+import (
+    "fmt"
+    "reflect"
+)
+
+type Animal struct {
+}
+
+func (m *Animal) Eat() {
+    fmt.Println("Eat")
+}
+func main() {
+    animal := Animal{}
+    value := reflect.ValueOf(&animal)
+    f := value.MethodByName("Eat") //通过反射获取它对应的函数，然后通过call来调用
+    f.Call([]reflect.Value{})
+}
+```
+
+##### 2. 你知道 Go 条件编译吗？
+
+Golang支持两种条件编译的实现方式：
+
+编译标签(build tags)：
+
+1) 编译标签由空格分隔的编译选项(options)以”或”的逻辑关系组成  
+2) 每个编译选项由逗号分隔的条件项以逻辑”与”的关系组成  
+3) 每个条件项的名字用字母+数字表示，在前面加!表示否定的意思  
+4) 不同tag域之间用空格区分，他们是OR关系  
+5) 同一tag域之内不同的tag用都好区分，他们是AND关系  
+6) 每一个tag都由字母和数字构成，！开头表示条件“非”  
+
+```shell
+% head headspin.go
+
+// Copyright 2013 Way out enterprises. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build someos someotheros thirdos,!amd64
+
+// Package headspin implements calculates numbers so large
+// they will make your head spin.
+package headspin
+```
+
+文件后缀(file postfix)：
+
+这个方法通过改变文件名的后缀来提供条件编译，这种方案比编译标签要简单，go/build可以在不读取源文件的情况下就可以决定哪些文件不需要参与编译。
+
+文件命名约定可以在go/build 包里找到详细的说明，简单来说如果你的源文件包含后缀：_GOOS.go，那么这个源文件只会在这个平台下编译，_GOARCH.go也是如此。这两个后缀可以结合在一起使用，但是要注意顺序：_GOOS_GOARCH.go， 不能反过来用：_GOARCH_GOOS.go. 例子如下：
+
+```shell
+mypkg_freebsd_arm.go // only builds on freebsd/arm systems
+mypkg_plan9.go       // only builds on plan9
+```
+
+##### 3. 如何实现交叉编译？
+
+我们知道golang一份代码可以编译出在不同系统和cpu架构运行的二进制文件。go也提供了很多环境变量，我们可以设置环境变量的值，来编译不同目标平台。
+
+GOOS: 目标平台； GOARCH: 目标架构。
+
+```shell
+# 编译目标平台linux 64位
+GOOS=linux GOARCH=amd64 go build main.go
+
+# 编译目标平台windows 64位
+GOOS=windows GOARCH=amd64 go build main.go
+```
+
+常用的GOOS和GOARCH 可以使用下面命令查看
+
+```shell
+go tool dist list
+```

@@ -11,7 +11,7 @@ Iptables和netfilter的关系是一个很容易让人搞不清的问题。很多
 iptables、ip6tables等都使用Xtables框架。存在“表（tables）”、“链（chain）”和“规则（rules）”三个层面。
 表指的是不同类型的数据包处理流程，每个表中又可以存在多个“链”，系统按照预订的规则将数据包通过某个内建链。
 
-![架构](  /assets/image/posts/iptables-arch.png)
+![架构](  /assets/images/posts/iptables-arch.png)
 
 例如将从本机发出的数据通过OUTPUT链。在“链”中可以存在若干“规则”，这些规则会被逐一进行匹配，如果匹配，可以执行相应的动作，如修改数据包，或者跳转。跳转可以直接接受该数据包或拒绝该数据包，也可以跳转到其他链继续进行匹配，或者从当前链返回调用者链。当链中所有规则都执行完仍然没有跳转时，将根据该链的默认策略（“policy”）执行对应动作；如果也没有默认动作，则是返回调用者链。
 
@@ -39,12 +39,12 @@ POSTOUTING链 ：用于源地址转换（SNAT）。
 
 规则链之间的先后顺序是 RREROUTING -> INPUT —> FORWARD -> OUTPUT -> POSTROUTING
 
-![架构](  /assets/image/posts/iptables-lists.png)
+![架构](  /assets/images/posts/iptables-lists.png)
 
 #### 规则表
 按照业务规则分别是filter表负责进行数据包过滤，nat负责进行地址转换操作，raw表负责异常处理，mangle表负责数据处理。他们之前的先后顺序是raw -> mangle -> nat -> filter。
 
-![架构](  /assets/image/posts/iptables-tables.png)
+![架构](  /assets/images/posts/iptables-tables.png)
 
 1. filter表  
 filter表是默认的表，如果不指明表则使用此表。其通常用于过滤数据包。其中的内建链包括：  
@@ -68,7 +68,7 @@ raw表用于处理异常，有如下两个内建链：
 PREROUTING  
 OUTPUT  
 
-![架构](  /assets/image/posts/iptables-packages.png)
+![架构](  /assets/images/posts/iptables-packages.png)
 
 iptables传输数据包的过程：  
 1. 当一个数据包进入网卡时，它首先进入PREROUTING链，内核根据数据包目的IP判断是否需要转送出去。  
