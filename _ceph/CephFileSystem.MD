@@ -1,60 +1,18 @@
 ---
-title: 分布式文件系统CephFS
+title: 分布式文件系统CephFileSystem
+tag: ceph
 ---
 
-# MDS JOURNALING
-## CEPHFS METADATA POOL
+## CephFS 报警对照表
 
-CepFS使用一个独立的元数据存储池来管理CephFS中的文件元数据(inode和dentry)。元数据池中保存了包括文件系统层次结构在内CephFS中所有的文件信息。此外，CepFS维护的元信息还包括如文件系统日志、打开的文件表、会话映射等与文件系统有关的其他信息。
-
-## CEPHFS MDS JOURNALING
-在执行文件系统操作之前，CepFS元数据服务器将元数据事件的日志流到元数据池中的RADOS中。主MDS守护进程为CepFS中的文件和目录管理元数据。
-
-CepFS使用日志有以下几个原因:
-
-1. 一致性:在MDS故障转移时，日志事件可以被重播，以达到一致的文件系统状态。此外，需要对备份存储进行多次更新的元数据操作需要记录崩溃一致性(以及其他一致性机制，如锁定等)。
-
-2. 性能:日志更新(大部分)是连续的，因此对日志的更新非常快。此外，可以将更新批处理为单个写操作，从而节省更新文件不同部分所涉及的磁盘寻道时间。拥有一个大的日志还可以帮助备MDS加热它的缓存，这间接地帮助MDS进行故障转移。
-
-每个活动元数据服务器在元数据池中维护自己的日志。日记账在多个对象上有条纹。不需要的(视为旧的)日志条目由元数据服务器进行修剪。
-
-## JOURNAL EVENTS
-除了记录文件系统元数据更新之外，cepfs还记录各种其他事件，例如客户端会话信息和目录导入/导出状态。这些事件被元数据服务器用来根据需要重新建立正确的状态，例如，Ceph MDS尝试在重新启动时重新连接客户端，当日志事件被重放，并且日志中特定的事件类型指定客户端实体类型在重新启动之前与MDS有会话。
-
-为了检查日志中记录的事件列表，CephFS提供了一个命令行实用程序CephFS -journal-tool，它可以如下所示使用:
-
-cephfs-journal-tool --rank=<fs>:<rank> event get list
-
-cepfs -journal-tool也用于发现和修复损坏的Ceph文件系统。
-
-## JOURNAL EVENT TYPES
-
-以下是MDS记录的各种事件类型。
-
-EVENT_COMMITTED:将请求(id)标记为已提交。
-
-EVENT_EXPORT:将目录映射到MDS级别。
-
-EVENT_FRAGMENT:跟踪目录碎片(拆分/合并)的各个阶段。
-
-EVENT_IMPORTSTART: MDS级别开始导入目录分片时记录。
-
-EVENT_IMPORTFINISH: MDS级别导入目录片段完成时记录。
-
-EVENT_NOOP:没有用于跳过日志区域的操作事件类型。
-
-EVENT_OPEN:跟踪哪些索引节点有打开的文件句柄。
-
-EVENT_RESETJOURNAL:用于将日志标记为重置后截断。
-
-EVENT_SESSION:跟踪打开的客户端会话。
-
-EVENT_SLAVEUPDATE:记录被转发到(从)mds的操作的各个阶段。
-
-EVENT_SUBTREEMAP:目录索引到目录内容(子树分区)的映射。
-
-EVENT_TABLECLIENT:记录客户端表(snap/anchor)的mds视图的转换状态。
-
-EVENT_TABLESERVER:记录服务器表的mds视图的转换状态(snap/anchor)。
-
-EVENT_UPDATE:记录inode上的文件操作。
+|----------------------+----------------------------------|
+|			状态		|		描述		|
+|:--------------------:|:---------------------------------|
+| Behind on trimming... | 日志回写落后于日志裁剪。mds的日志机制：mds以日志方式先保存元数据，元数据保存在每条操作的事件（event）中，事件（通常是1024个）组成segment。当segment到达一定数量时（mds_log_max_segments默认32）对日志进行裁剪，即将部分日志关联的元数据写回。出现该条告警实际上表明回写速度慢或者遇到了bug，单纯地将配置提高并不是最理想的办法。 |
+| Client name failing to respond to capability release | 客户端没有及时响应释放cap的请求。在cephfs中客户端需要向mds获得响应的操作能力，称为cap。获得cap则有相关的操作能力。如果其他客户端需要操作时，mds会要求当前客户端释放cap。如果客户端出现bug或者没有响应，则mds会在60秒（session_timeout 设置）会出现该告警。 |
+| Client name failing to respond to cache pressure | 客户端没有及时相应（mds的）缓存压力。元数据缓存一部分元数据信息，同时mds会在自身内存中缓存同样的信息。如果其缓存的元数据超过了最大inode缓存量或者最大内存用量，mds会要求客户端释放一定数量的缓存。如果在规定时间内即60s（mds_recall_warning_decay_rate的值）没有释放32k（默认设置在mds_recall_warning_threshold中，随后会减少）则产生告警 。产生告警的原因可能是客户端存在bug或者无法及时响应。 |
+| Client name failing to advance its oldest client/flush tid | 客户端没有更新其最久客户端tid值。tid是指客户端和mds直接通信的task id。每次客户端完成任务后更新该task id，告知mds mds可以不用管该id之前的任务了。mds即可释放相关的占用资源。否则，资源不会被主动释放。当mds端自行记录的任务完成数超过100K（max_completed_requests设置）时，客户端并没有更新id，则产生相应的告警。出现该告警可能代表客户端存在bug。也遇到过mds因为锁问题部分请求卡住，重启mds 锁状态正常后可以恢复。 |
+| MDS in read-only mode | 字面翻译mds进入只读模式。只读模式意味着在客户端上创建文件等操作元数据的行为将不被允许。进入只读的原因可能是向元数据池写入时发生错误，或者通过命令强制mds进入只读模式。 |
+| N slow requests are blocked | 字面翻译多个慢请求在阻塞状态。出现该条告警意味着客户端的消息没有处理完成，超过了mds_op_complaint_time所规定的时间（默认30s）。可能出现的原因是mds运行缓慢，或者向rados写入日志未确认（底层pg或者osd出现问题），或者是mds存在的bug。此时，通过ops命令查看当前正在执行的操作，可进一步分析出现阻塞请求的原因。 |
+| Too many inodes in cache | 字面翻译在mds的缓存中缓存了太多inode。mds的缓存指两个方面：inode数量和内存占用量。inode默认值mds_cache_size为100K，mds_cache_memory_limit为1G。到达一个告警的阈值后产生告警，一般为50%（mds_health_cache_threshold）。通过调整参数可以避免告警的出现，但是这只是治标的办法，治本的办法需要跟踪业务，了解资源占用的具体原因，是否只是通过调整参数可以解决。|
+|---------------------+----------------------------------|

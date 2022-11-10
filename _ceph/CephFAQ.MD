@@ -1,5 +1,6 @@
 ---
-title: CephFAQ
+title: Ceph FAQ 总结
+tag: ceph
 ---
 
 ## 生产环境如何部署Ceph

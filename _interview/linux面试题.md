@@ -167,3 +167,6 @@ MKDEV(int major, int minor)用于生产一个 dev_t 类型的对象。
 
 工作队列：处理进程上下文中，可以睡眠阻塞。
 
+##### 23. Linux 磁盘I/O的三种方式对比
+标准I/O、直接 I/O、mmap
+
