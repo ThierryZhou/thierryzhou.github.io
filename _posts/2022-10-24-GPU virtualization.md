@@ -283,4 +283,5 @@ ignoredByScheduler: false
 
 #### 实验和推理任务都分配在比较旧的GPU上，并尽可能优先分配满一个节点，再分配下一个节点
 
-
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io

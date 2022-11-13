@@ -195,3 +195,6 @@ WASI是解决第一个问题的标准解决方案。尽管网络上还没有成�
 [WebGPU-wiki](https://en.wikipedia.org/wiki/WebGPU)
 
 [Apache TVM](https://tvm.apache.org/docs/)
+
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io

@@ -63,6 +63,12 @@ type String struct {
 }
 ```
 
+##### 4. golang 支持继承吗？
+
+golang 没有继承，通过结构嵌套和嵌入来完成类似的功能。
+
+##### 5. golang 
+
 ## GC
 ##### 1. 如果 goroutine 一直占用资源怎么办，GMP模型怎么解决这个问题
 如果有一个goroutine一直占用资源的话，GMP模型会从正常模式转为饥饿模式，通过信号协作强制处理在最前的 goroutine 去分配使用

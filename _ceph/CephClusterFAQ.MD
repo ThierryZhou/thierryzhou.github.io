@@ -183,3 +183,6 @@ ceph config set global mon_data_size_warn 30GiB
 
 修改ConfigMap rook-ceph-csi-config rook-ceph-mon-endpoints
 修改Secret rook-ceph-config
+
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io

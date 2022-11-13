@@ -542,6 +542,9 @@ profiles:
           weight: 1
 ```
 
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io
+
 ## 参考
 - [1] [kubenretes官方文档——概述——调度] (https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/)
 - [2] [kubenretes官方文档——调度] (https://kubernetes.io/zh-cn/docs/reference/scheduling/)

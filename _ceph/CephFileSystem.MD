@@ -16,3 +16,6 @@ tag: ceph
 | N slow requests are blocked | 字面翻译多个慢请求在阻塞状态。出现该条告警意味着客户端的消息没有处理完成，超过了mds_op_complaint_time所规定的时间（默认30s）。可能出现的原因是mds运行缓慢，或者向rados写入日志未确认（底层pg或者osd出现问题），或者是mds存在的bug。此时，通过ops命令查看当前正在执行的操作，可进一步分析出现阻塞请求的原因。 |
 | Too many inodes in cache | 字面翻译在mds的缓存中缓存了太多inode。mds的缓存指两个方面：inode数量和内存占用量。inode默认值mds_cache_size为100K，mds_cache_memory_limit为1G。到达一个告警的阈值后产生告警，一般为50%（mds_health_cache_threshold）。通过调整参数可以避免告警的出现，但是这只是治标的办法，治本的办法需要跟踪业务，了解资源占用的具体原因，是否只是通过调整参数可以解决。|
 |---------------------+----------------------------------|
+
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io
