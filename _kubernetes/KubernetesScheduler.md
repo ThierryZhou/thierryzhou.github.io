@@ -46,7 +46,7 @@ Kubernetes 调度器中大多数的调度功能，通过调度框架 (framework)
 
 下图显示了一个 Pod 的调度上下文以及调度框架公开的扩展点。 在此图片中，“过滤器”等同于“断言”，“评分”相当于“优先级函数”。
 
-![调度框架](  /assets/images/kubernetes/scheduling-framework-extensions.png)
+![调度框架](/assets/images/kubernetes/scheduling-framework-extensions.png)
 
 一个插件可以在多个扩展点处注册，以执行更复杂或有状态的任务。
 
