@@ -1,5 +1,5 @@
 ---
-titile: Jekyll搭建博客
+titile: Jekyll Minimal-Mistakes 搭建博客
 ---
 
 ## 前言
@@ -7,6 +7,8 @@ titile: Jekyll搭建博客
 jekyll 搭建博客可以很方便的发布在GitHub Pages上面，但是由于 GitHub 官方支持的主题插件比较少，我使用了一个非官方的主题插件——Jekyll Minimal Mistakes。这个主题还挺好的用的，但是由于缺少一些中文文档，这里把搭建过程整理下来方便，以后有需求的人复用，也方便我万一断更了更容易把这项技能捡起来。
 
 项目地址：https://github.com/mmistakes/minimal-mistakes
+
+## 网站部署
 
 ## 发布文章
 
