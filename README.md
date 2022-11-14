@@ -2,10 +2,9 @@
 
 这是一个基于GitHub Pages的博客文档仓库，本站点使用Jekyll静态站点生成器自动生成。
 
-
 # 目录结构
 
-  专题文档位于'/Docs/{project}/{article}'中，其他博客位于'/_posts/{article}'中。
+专题文档位于'/Docs/_{project}/{article}'中，其他博客位于'/_posts/{article}'中。
 专题文档均是简单地markdown文件可以直接在github网站中进行浏览，或者复制到本地进行浏览。
 在复制文档之后，需要注意的是markdown文档中使用的图片和排版位于根目录下的assets目录中。
 

@@ -27,36 +27,36 @@
 	
 #### 3. proposer如何产生proposal的算法：
 
-		1. proposer选择一个新的提案编号n，然后向某个acceptors集合的成员发送请求，要求acceptor做出如下回应：
-			(a).保证不再通过任何编号小于n的提案
-			(b).当前它已经通过的编号小于n的最大编号的提案，如果存在的话
+1. proposer选择一个新的提案编号n，然后向某个acceptors集合的成员发送请求，要求acceptor做出如下回应：
+(a).保证不再通过任何编号小于n的提案
+(b).当前它已经通过的编号小于n的最大编号的提案，如果存在的话
 
-		2. 如果proposer收到了来自半数以上的acceptor的响应结果，那么它就可以产生编号为n，value值为v的提案，这里v是所有响应中编号最大的提案的value值，如果响应中不包含任何的提案那么这个值就可以由proposer任意选择。
+2. 如果proposer收到了来自半数以上的acceptor的响应结果，那么它就可以产生编号为n，value值为v的提案，这里v是所有响应中编号最大的提案的value值，如果响应中不包含任何的提案那么这个值就可以由proposer任意选择。
 
-		我们把这样的一个请求称为编号为n的prepare请求。
+我们把这样的一个请求称为编号为n的prepare请求。
 
-		Proposer通过向某个acceptors集合发送需要被通过的提案请求来产生一个提案(此时的acceptors集合不一定是响应prepare阶段请求的那个acceptors集合)。我们称此请求为accept请求。
+Proposer通过向某个acceptors集合发送需要被通过的提案请求来产生一个提案(此时的acceptors集合不一定是响应prepare阶段请求的那个acceptors集合)。我们称此请求为accept请求。
 
 #### 4. acceptor如何响应上述算法？
 
-	   Acceptor可以忽略任何请求而不用担心破坏其算法的安全性。
-	   Acceptor必须记住这些信息即使是在出错或者重启的情况下。
-	   Proposer可以总是可以丢弃提案以及它所有的信息—只要它可以保证不会产生具有相同编号的提案即可。
+Acceptor可以忽略任何请求而不用担心破坏其算法的安全性。
+Acceptor必须记住这些信息即使是在出错或者重启的情况下。
+Proposer可以总是可以丢弃提案以及它所有的信息—只要它可以保证不会产生具有相同编号的提案即可。
 	
 #### 5.  将proposer和acceptor放在一块，我们可以得到算法的如下两阶段执行过程：
 
-		Phase1.(a) proposer选择一个提案编号n，然后向acceptors的某个majority集合的成员发送编号为n的prepare请求。
+Phase1.(a) proposer选择一个提案编号n，然后向acceptors的某个majority集合的成员发送编号为n的prepare请求。
 
-		(b).如果一个acceptor收到一个编号为n的prepare请求，且n大于它已经响应的所有prepare请求的编号。那么它就会保证不会再通过(accept)任何编号小于n的提案，同时将它已经通过的最大编号的提案(如果存在的话)作为响应{!?此处隐含了一个结论，最大编号的提案肯定是小于n的}。
+(b).如果一个acceptor收到一个编号为n的prepare请求，且n大于它已经响应的所有prepare请求的编号。那么它就会保证不会再通过(accept)任何编号小于n的提案，同时将它已经通过的最大编号的提案(如果存在的话)作为响应{!?此处隐含了一个结论，最大编号的提案肯定是小于n的}。
 
-		Phase2.(a)如果proposer收到来自半数以上的acceptor对于它的prepare请求(编号为n)的响应，那么它就会发送一个针对编号为n，value值为v的提案的accept请求给acceptors，在这里v是收到的响应中编号最大的提案的值，如果响应中不包含提案，那么它就是任意值。
+Phase2.(a)如果proposer收到来自半数以上的acceptor对于它的prepare请求(编号为n)的响应，那么它就会发送一个针对编号为n，value值为v的提案的accept请求给acceptors，在这里v是收到的响应中编号最大的提案的值，如果响应中不包含提案，那么它就是任意值。
 
-		(b).如果acceptor收到一个针对编号n的提案的accept请求，只要它还未对编号大于n的prepare请求作出响应，它就可以通过这个提案。	
+(b).如果acceptor收到一个针对编号n的提案的accept请求，只要它还未对编号大于n的prepare请求作出响应，它就可以通过这个提案。
 
 #### 6. 很容易构造出一种情况，在该情况下，两个proposers持续地生成编号递增的一系列提案。
-	   为了保证进度，必须选择一个特定的proposer来作为一个唯一的提案提出者。
+为了保证进度，必须选择一个特定的proposer来作为一个唯一的提案提出者。
 
-	   如果系统中有足够的组件(proposer，acceptors及通信网络)工作良好，通过选择一个特定的proposer，活性就可以达到。著名的FLP结论指出，一个可靠的proposer选举算法要么利用随机性要么利用实时性来实现—比如使用超时机制。然而，无论选举是否成功，安全性都可以保证。{!即即使同时有2个或以上的proposers存在，算法仍然可以保证正确性}
+如果系统中有足够的组件(proposer，acceptors及通信网络)工作良好，通过选择一个特定的proposer，活性就可以达到。著名的FLP结论指出，一个可靠的proposer选举算法要么利用随机性要么利用实时性来实现—比如使用超时机制。然而，无论选举是否成功，安全性都可以保证。{!即即使同时有2个或以上的proposers存在，算法仍然可以保证正确性}
 
 #### 7. 不同的proposers会从不相交的编号集合中选择自己的编号，这样任何两个proposers就不会有相同编号的提案了。
 

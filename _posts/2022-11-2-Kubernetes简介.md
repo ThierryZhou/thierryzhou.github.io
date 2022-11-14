@@ -169,4 +169,4 @@ Kubernetes 支持许多容器运行环境，例如 containerd、 CRI-O 以及 Ku
 https://thierryzhou.github.io
 
 ## 参考
-- [1] [kubenretes官方文档] (https://kubernetes.io/zh-cn/docs/concepts/overview/)
+- [1] [kubenretes官方文档](https://kubernetes.io/zh-cn/docs/concepts/overview/)

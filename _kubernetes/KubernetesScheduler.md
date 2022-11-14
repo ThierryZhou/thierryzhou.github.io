@@ -1,6 +1,7 @@
 ---
 title: "Kubernetes 调度器详解"
 tag: kubernetes
+excerpt: 在 Kubernetes 中，调度 (scheduling) 指的是确保 Pod 匹配到合适的节点， 以便 kubelet 能够运行它们。 调度的工作由调度器和控制器协调完成。
 ---
 ## 概览
 在 Kubernetes 中，调度 (scheduling) 指的是确保 Pod 匹配到合适的节点， 以便 kubelet 能够运行它们。 调度的工作由调度器和控制器协调完成。

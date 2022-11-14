@@ -125,6 +125,9 @@ collections:
   interview:
     output: true
     permalink: /:collection/:path/
+  algorithm:
+    output: true
+    permalink: /:collection/:path/
 
 # Sass/SCSS
 sass:
@@ -229,6 +232,15 @@ defaults:
   - scope:
       path: ""
       type: interview
+    values:
+      layout: single
+      author_profile: true
+      share: false
+      related: true
+  # _algorithm
+  - scope:
+      path: ""
+      type: algorithm
     values:
       layout: single
       author_profile: true

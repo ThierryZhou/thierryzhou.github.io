@@ -8,6 +8,8 @@ main:
     url: /kubernetes/
   - title: "Interview专题"
     url: /interview/
+  - title: "数据结构与算法"
+    url: /algorithm/
 
 # # sidebar navigation list sample
 # sidebar-sample:
