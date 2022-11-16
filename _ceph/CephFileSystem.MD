@@ -3,6 +3,12 @@ title: 分布式文件系统CephFileSystem
 tag: ceph
 ---
 
+## Metadata Server的启动流程
+
+mds进程启动后，通过向MDSMonitor发送Beacon消息，并接收从MDSMonitor返回的MDSMap消息逐步启动自己。Beacon除了用于告知monitor关于mds的健康状态，还有want_state这一信息。want_state的值是在mds启动或者收到MDSMap后由mds自己决定的(如向resolve、reconnect、rejoin等转换）。
+MDSMonitor接收mds发来的Beacon消息，更新pending_fsmap，写入store。MDSMonitor::tick()在每次写完store后被调用，对pending_fsmap进行遍历，尝试给fsmap关联mds，然后更新pending_fsmap，再次写入store，完成后向mds发送MDSMap。关联到fsmap的mds分两类：一类是具有rank的，最终mds daemon会进入到STATE_ACTIVE状态，其中rank值由MDSMonitor分配；另一类是STATE_STANDBY_REPLAY，每个fsmap最多有一个，没有rank值。关联动作是通过遍历已创建fs map（如果创建了多个filesystem，那么此处就会有多个fs map），寻找可用的处于STATE_STANDBY状态的mds实现的，具体在MDSMonitor::maybe_expand_cluster()。
+在众多mds状态中，由MDSMonitor路径负责的状态转换只有一部分，所以在MDSMonitor的代码里不会看到全部mds状态。其他状态转换是在mds端做的决策，此时monitor只是作为一个记录者，负责将状态写入store中。
+
 ## CephFS 报警对照表
 
 |----------------------+----------------------------------|

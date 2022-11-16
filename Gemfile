@@ -18,6 +18,12 @@ gem "minimal-mistakes-jekyll"
 # If you have any plugins, put them here!
 group :jekyll_plugins do
   gem "jekyll-feed", "~> 0.15.1"
+
+  gem "github-pages", "~> 227"
+
+  gem "jekyll-include-cache"
+
+  gem "jekyll-stickyposts"
 end
 
 # Windows and JRuby does not include zoneinfo files, so bundle the tzinfo-data gem
@@ -34,8 +40,4 @@ gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
 # do not have a Java counterpart.
 gem "http_parser.rb", "~> 0.6.0", :platforms => [:jruby]
 
-gem "github-pages", "~> 227", group: :jekyll_plugins
-
 gem "webrick", "~> 1.7"
-
-gem "jekyll-include-cache", group: :jekyll_plugins

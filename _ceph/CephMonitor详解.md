@@ -1,37 +1,35 @@
-# Ceph Monitor 详解
-##
+---
+title: Ceph Monitor 详解
+tag: ceph
+---
 
-![monitor](/assets/images/ceph/ceph-monitor-stack.jpg)
-
-## Paxos模块
-### Paxos算法
+## 前置知识——Paxos算法
 #### 1. 角色和名词
-		Proposer：意为提案者，它可以提出一个提案
-		Proposal：提案，由Proposer提出。一个提案由一个编号及value形成的对组成，编号是为了防止混淆保证提案的可区分性，value即代表了提案本身的内容。
-		
-		Acceptor：是提案的受理者，有权决定是否它本身是否接受该提案
-		Choose：提案被选定，在本文中当有半数以上Acceptor接受该提案时，就认为该提案被选定了，被选定的提案
-		
-		Learner：需要知道被选定的提案信息的那些人
+Proposer：意为提案者，它可以提出一个提案
+Proposal：提案，由Proposer提出。一个提案由一个编号及value形成的对组成，编号是为了防止混淆保证提案的可区分性，value即代表了提案本身的内容。
+
+Acceptor：是提案的受理者，有权决定是否它本身是否接受该提案
+Choose：提案被选定，在本文中当有半数以上Acceptor接受该提案时，就认为该提案被选定了，被选定的提案
+
+Learner：需要知道被选定的提案信息的那些人
 
 #### 2. acceptor接受proposal有什么规则:
-	1. P1: 一个acceptor必须通过(accept)它收到的第一个提案。
-	   P1a: 一个acceptor可以接受一个编号为n的提案，只要它还未响应任何编号大于n的prepare请求。
+1) P1: 一个acceptor必须通过(accept)它收到的第一个提案。  
+   P1a: 一个acceptor可以接受一个编号为n的提案，只要它还未响应任何编号大于n的prepare请求。  
 
-	2. P2: 如果具有value值v的提案被选定(chosen)了，那么所有比它编号更高的被选定的提案的value值也必须是v。
-	   P2c: 对于任意的n和v，如果编号为n和value值为v的提案被提出，那么肯定存在一个由半数以上的acceptor组成的集合S，可以满足条件a)或者b)中的一个：
-	   a)S中不存在任何的acceptor通过过编号小于n的提案。
-	   b)v是S中所有acceptor通过的编号小于n的具有最大编号的提案的value值。
-	   
-	   P2c决定proposer如何产生proposal
+2) P2: 如果具有value值v的提案被选定(chosen)了，那么所有比它编号更高的被选定的提案的value值也必须是v。  
+   P2c: 对于任意的n和v，如果编号为n和value值为v的提案被提出，那么肯定存在一个由半数以上的acceptor组成的集合S，可以满足条件a)或者b)中的一个：  
+     a) S中不存在任何的acceptor通过过编号小于n的提案。  
+     b) v是S中所有acceptor通过的编号小于n的具有最大编号的提案的value值。  
+   P2c: 决定proposer如何产生proposal
 	
 #### 3. proposer如何产生proposal的算法：
 
-1. proposer选择一个新的提案编号n，然后向某个acceptors集合的成员发送请求，要求acceptor做出如下回应：
-(a).保证不再通过任何编号小于n的提案
-(b).当前它已经通过的编号小于n的最大编号的提案，如果存在的话
+1) proposer选择一个新的提案编号n，然后向某个acceptors集合的成员发送请求，要求acceptor做出如下回应：
+  a). 保证不再通过任何编号小于n的提案
+  b). 当前它已经通过的编号小于n的最大编号的提案，如果存在的话
 
-2. 如果proposer收到了来自半数以上的acceptor的响应结果，那么它就可以产生编号为n，value值为v的提案，这里v是所有响应中编号最大的提案的value值，如果响应中不包含任何的提案那么这个值就可以由proposer任意选择。
+2) 如果proposer收到了来自半数以上的acceptor的响应结果，那么它就可以产生编号为n，value值为v的提案，这里v是所有响应中编号最大的提案的value值，如果响应中不包含任何的提案那么这个值就可以由proposer任意选择。
 
 我们把这样的一个请求称为编号为n的prepare请求。
 
@@ -39,19 +37,21 @@ Proposer通过向某个acceptors集合发送需要被通过的提案请求来产
 
 #### 4. acceptor如何响应上述算法？
 
-Acceptor可以忽略任何请求而不用担心破坏其算法的安全性。
-Acceptor必须记住这些信息即使是在出错或者重启的情况下。
-Proposer可以总是可以丢弃提案以及它所有的信息—只要它可以保证不会产生具有相同编号的提案即可。
-	
-#### 5.  将proposer和acceptor放在一块，我们可以得到算法的如下两阶段执行过程：
+Acceptor 可以忽略任何请求而不用担心破坏其算法的安全性。  
+Acceptor 必须记住这些信息即使是在出错或者重启的情况下。  
+Proposer 可以总是可以丢弃提案以及它所有的信息—只要它可以保证不会产生具有相同编号的提案即可。  
 
-Phase1.(a) proposer选择一个提案编号n，然后向acceptors的某个majority集合的成员发送编号为n的prepare请求。
+#### 5. 将proposer和acceptor放在一块，我们可以得到算法的如下两阶段执行过程：
 
-(b).如果一个acceptor收到一个编号为n的prepare请求，且n大于它已经响应的所有prepare请求的编号。那么它就会保证不会再通过(accept)任何编号小于n的提案，同时将它已经通过的最大编号的提案(如果存在的话)作为响应{!?此处隐含了一个结论，最大编号的提案肯定是小于n的}。
+Phase1.
+a) proposer选择一个提案编号n，然后向acceptors的某个majority集合的成员发送编号为n的prepare请求。
 
-Phase2.(a)如果proposer收到来自半数以上的acceptor对于它的prepare请求(编号为n)的响应，那么它就会发送一个针对编号为n，value值为v的提案的accept请求给acceptors，在这里v是收到的响应中编号最大的提案的值，如果响应中不包含提案，那么它就是任意值。
+b) 如果一个acceptor收到一个编号为n的prepare请求，且n大于它已经响应的所有prepare请求的编号。那么它就会保证不会再通过(accept)任何编号小于n的提案，同时将它已经通过的最大编号的提案(如果存在的话)作为响应{!?此处隐含了一个结论，最大编号的提案肯定是小于n的}。
 
-(b).如果acceptor收到一个针对编号n的提案的accept请求，只要它还未对编号大于n的prepare请求作出响应，它就可以通过这个提案。
+Phase2.
+a) 如果proposer收到来自半数以上的acceptor对于它的prepare请求(编号为n)的响应，那么它就会发送一个针对编号为n，value值为v的提案的accept请求给acceptors，在这里v是收到的响应中编号最大的提案的值，如果响应中不包含提案，那么它就是任意值。
+
+b) 如果acceptor收到一个针对编号n的提案的accept请求，只要它还未对编号大于n的prepare请求作出响应，它就可以通过这个提案。
 
 #### 6. 很容易构造出一种情况，在该情况下，两个proposers持续地生成编号递增的一系列提案。
 为了保证进度，必须选择一个特定的proposer来作为一个唯一的提案提出者。
@@ -62,31 +62,309 @@ Phase2.(a)如果proposer收到来自半数以上的acceptor对于它的prepare�
 
 #### 8. 关于leader election算法：
 
-### Paxos 源码解析
+
+## Ceph Monitor 架构分析
+
+Ceph Monitor 的内部包含kv数据、Paxos模块以及一系列的业务模块。从下往上分别是MonitorDBStore、Paxos、PaxosService、osdmap/monmap/mdsmap...。  
+MonitorDBStore 是对底层DB的抽象封装，将DB的基本操作事务封装成统一接口，当前DB默认使用rocksdb。  
+PaxosService 负责保证每次都只会有一个提案进入paxos流程。  
+Paxos 模块具体实现了multi-Paxos算法。  
+XXXmap 是经过Paxos处理后的资源列表。
+
+![Monitor架构图](/assets/images/ceph/ceph-monitor-stack.jpg)
+
+从代码角度看，Monitor 启动有五个步骤：
+
+preinit() -> bootstrap() -> _reset() -> ms_dispatch() -> refresh_from_paxos()
+
+![paxos-stack](/assets/images/ceph/ceph-paxos-stack.png)
+
+#### PreInit
+monitor进程启动的时候，会初始化paxos及其服务，如果服务需要特殊初始化。  
+调用流程:  
+Monitor::preinit() -> Monitor::init_paxos() -> FooService::init()
+
+#### Bootstrap
+monitor进程在很多情况下会重新进入bootstrap流程，这个过程会重启服务。  
+调用流程:  
+Monitor::bootstrap() -> Monitor::_reset() -> PaxosService::restart() -> FooService::on_restart()
+
+#### Refresh
+
+决议完成后，需要更新决议的内容。  
+调用流程如下:  
+Paxos::do_refresh() -> Monitor::refresh_from_paxos() -> PaxosService::refresh() -> FooService::update_from_paxos()
+
+#### Active
+
+更新完成后，需要执行最开始的回调，然后重新回到active状态，服务需要重载PaxosService::on_active接口:
+
+#### Process
+
+Paxos 模块定位是，paxos 算法模型+消息发送，数据只是bytes；PaxosService 模式的定位是有数据类型的paxos，并提供根据数据类型的一些方法，比如monmap。
+调用流程如下所示：  
+PaxosService::dispatch() -> PaxosService::propose_pending() -> PaxosService::encode_pending()
+依次看一下代码：
+```cpp
+bool PaxosService::dispatch(MonOpRequestRef op)
+{
+  // ...
+
+  // 确认选举的 epoch  值越来越大
+  if (m->rx_election_epoch &&
+      m->rx_election_epoch < mon.get_epoch()) {
+    dout(10) << " discarding forwarded message from previous election epoch "
+	     << m->rx_election_epoch << " < " << mon.get_epoch() << dendl;
+    return true;
+  }
+
+  // 确认客户连接处于激活状态。
+  if (m->get_connection() &&
+      !m->get_connection()->is_connected() &&
+      m->get_connection() != mon.con_self &&
+      m->get_connection()->get_messenger() != NULL) {
+    dout(10) << " discarding message from disconnected client "
+	     << m->get_source_inst() << " " << *m << dendl;
+    return true;
+  }
+
+  // 确认monmap可读且是最新的。
+  if (!is_readable(m->version)) {
+    dout(10) << " waiting for paxos -> readable (v" << m->version << ")" << dendl;
+    wait_for_readable(op, new C_RetryMessage(this, op), m->version);
+    return true;
+  }
+
+  // 预处理
+  if (preprocess_query(op)) 
+    return true;  // easy!
+
+  // 非leader，转发消息
+  if (!mon.is_leader()) {
+    mon.forward_request_leader(op);
+    return true;
+  }
+  
+  // 如果目前不可更新，等待重试
+  if (!is_writeable()) {
+    dout(10) << " waiting for paxos -> writeable" << dendl;
+    wait_for_writeable(op, new C_RetryMessage(this, op));
+    return true;
+  }
+
+  // 准备更新
+  if (!prepare_update(op)) {
+    return true;
+  }
+
+  // 处理紧急预案
+  if (need_immediate_propose) {
+    dout(10) << __func__ << " forced immediate propose" << dendl;
+    need_immediate_propose = false;
+    propose_pending();
+    return true;
+  }
+
+  // 预案处理
+  double delay = 0.0;
+  if (!should_propose(delay)) {
+    dout(10) << " not proposing" << dendl;
+    return true;
+  }
+
+  if (delay == 0.0) {
+    propose_pending();
+    return true;
+  }
+  // ...
+}
 ```
-1. Paxos
-	Paxos.h定位是，paxos算法模型+消息发送，数据只是bytes
-	PaxosService的定位是，有数据类型的paxos，并提供根据数据类型的一些方法，比如monmap
-	尽管难懂，Paxos可以说是最extensively commented的代码了
-	dispatch()函数往往是处理流程的核心吗？
+PaxosService::propose_pending()调用Paxos::propose_new_value()，称作commit。MonmapService之类的都通过propose_ending()实现提交，不需要直接调用propose_new_value()。propose_pending()中调用了encode_pendine()。
+```cpp
+void PaxosService::propose_pending()
+{
+  // ...
 
-   PaxosService->dispatch()->propose_pending()->encode_pending()
+  // 获取paxos的transaction
+  MonitorDBStore::TransactionRef t = paxos.get_pending_transaction();
 
-	PGMonitor的关键是pending_inc，从encode_pending()中寻找paxos要同步的数据
-	OSDMonitor存有crushmap
-		tick()中检查OSD状态，和do_propose
+  if (should_stash_full())
+    encode_full(t);
 
-	What is MonSession?
-	LogMonitor似乎比较简单，适合用来学习
-	Tip: 可以通过跟踪state变量的变化，来学习Monitor.cc的代码
-	PaxosService的一组类中，似乎不与messenger直接沟通。它们的dispatch()函数由Monitor.cc来调用的，在Monitor::dispatch()中。
+  // 将决议编码入 transaction 中
+  encode_pending(t);
+  have_pending = false;
+
+  if (format_version > 0) {
+    t->put(get_service_name(), "format_version", format_version);
+  }
+
+  // 发起决议
+  proposing = true;
+  
+  class C_Committed : public Context {
+    PaxosService *ps;
+  public:
+    explicit C_Committed(PaxosService *p) : ps(p) { }
+    void finish(int r) override {
+      ps->proposing = false;
+      if (r >= 0)
+	ps->_active();
+      else if (r == -ECANCELED || r == -EAGAIN)
+	return;
+      else
+	ceph_abort_msg("bad return value for C_Committed");
+    }
+  };
+  paxos.queue_pending_finisher(new C_Committed(this));
+  paxos.trigger_propose();
+}
 ```
+PaxosService::encode_pending()抽象函数，由子类覆盖。通过它能找到子类负责什么样的数据。
+```cpp
+void MDSMonitor::encode_pending(MonitorDBStore::TransactionRef t)
+{
+  auto &pending = get_pending_fsmap_writeable();
+  auto &epoch = pending.epoch;
+
+  dout(10) << "encode_pending e" << epoch << dendl;
+
+  print_map<30>(pending);
+  if (!g_conf()->mon_mds_skip_sanity) {
+    pending.sanity(true);
+  }
+
+  // 记录修改时间到 mds_map 中
+  for (auto &p : pending.filesystems) {
+    if (p.second->mds_map.epoch == epoch) {
+      p.second->mds_map.modified = ceph_clock_now();
+    }
+  }
+
+  // apply to paxos
+  ceph_assert(get_last_committed() + 1 == pending.epoch);
+  bufferlist pending_bl;
+  pending.encode(pending_bl, mon.get_quorum_con_features());
+
+  // 将所有的数据放进 tranction
+  put_version(t, pending.epoch, pending_bl);
+  put_last_committed(t, pending.epoch);
+
+  // MDSHealth 数据编码
+  for (std::map<uint64_t, MDSHealth>::iterator i = pending_daemon_health.begin();
+      i != pending_daemon_health.end(); ++i) {
+    bufferlist bl;
+    i->second.encode(bl);
+    t->put(MDS_HEALTH_PREFIX, stringify(i->first), bl);
+  }
+
+  for (std::set<uint64_t>::iterator i = pending_daemon_health_rm.begin();
+      i != pending_daemon_health_rm.end(); ++i) {
+    t->erase(MDS_HEALTH_PREFIX, stringify(*i));
+  }
+  pending_daemon_health_rm.clear();
+  remove_from_metadata(pending, t);
+
+  // 健康检查
+  health_check_map_t new_checks;
+  const auto &info_map = pending.get_mds_info();
+  for (const auto &i : info_map) {
+    const auto &gid = i.first;
+    const auto &info = i.second;
+    if (pending_daemon_health_rm.count(gid)) {
+      continue;
+    }
+    MDSHealth health;
+    auto p = pending_daemon_health.find(gid);
+    if (p != pending_daemon_health.end()) {
+      health = p->second;
+    } else {
+      bufferlist bl;
+      mon.store->get(MDS_HEALTH_PREFIX, stringify(gid), bl);
+      if (!bl.length()) {
+	derr << "Missing health data for MDS " << gid << dendl;
+	continue;
+      }
+      auto bl_i = bl.cbegin();
+      health.decode(bl_i);
+    }
+    for (const auto &metric : health.metrics) {
+      if (metric.type == MDS_HEALTH_DUMMY) {
+        continue;
+      }
+      const auto rank = info.rank;
+      health_check_t *check = &new_checks.get_or_add(
+	mds_metric_name(metric.type),
+	metric.sev,
+	mds_metric_summary(metric.type),
+	1);
+      ostringstream ss;
+      ss << "mds." << info.name << "(mds." << rank << "): " << metric.message;
+      bool first = true;
+      for (auto &p : metric.metadata) {
+	if (first) {
+	  ss << " ";
+	} else {
+	  ss << ", ";
+        }
+	ss << p.first << ": " << p.second;
+        first = false;
+      }
+      check->detail.push_back(ss.str());
+    }
+  }
+  pending.get_health_checks(&new_checks);
+  for (auto& p : new_checks.checks) {
+    p.second.summary = std::regex_replace(
+      p.second.summary,
+      std::regex("%num%"),
+      stringify(p.second.detail.size()));
+    p.second.summary = std::regex_replace(
+      p.second.summary,
+      std::regex("%plurals%"),
+      p.second.detail.size() > 1 ? "s" : "");
+    p.second.summary = std::regex_replace(
+      p.second.summary,
+      std::regex("%isorare%"),
+      p.second.detail.size() > 1 ? "are" : "is");
+    p.second.summary = std::regex_replace(
+      p.second.summary,
+      std::regex("%hasorhave%"),
+      p.second.detail.size() > 1 ? "have" : "has");
+  }
+  encode_health(new_checks, t);
+}
+```
+
+```cpp
+void Paxos::propose_pending()
+{
+  ceph_assert(is_active());
+  ceph_assert(pending_proposal);
+
+  cancel_events();
+
+  bufferlist bl;
+  pending_proposal->encode(bl);
+
+  dout(10) << __func__ << " " << (last_committed + 1)
+	   << " " << bl.length() << " bytes" << dendl;
+  dout(30) << __func__ << " transaction dump:\n";
+  JSONFormatter f(true);
+  pending_proposal->dump(&f);
+  f.flush(*_dout);
+  *_dout << dendl;
+
+  pending_proposal.reset();
+
+  committing_finishers.swap(pending_finishers);
+  state = STATE_UPDATING;
+  begin(bl);
+}
+```
+
 # Monitor模块
 ```
-1. monitor的paxos
-	1. 所有的数据存在MonitorDBStore(rocksdb)中
-	2. Paxos <- PaxosService <- MonmapService, OSDService ... <- Monitor
-
 2. Monitor walkthrough
 	[Mon0]
 	init()
@@ -247,11 +525,6 @@ dispatch()
 
 1. Paxos & PaxosService
 
-	1. PaxosService::propose_pending()调用Paxos::propose_new_value()，称作commit。
-	   MonmapService之类的都通过propose_ending()实现提交，不需要直接调用propose_new_value()。
-
-	   propose_pending()中调用了encode_pendine()。
-	   PaxosService::encode_pending()抽象函数，由子类覆盖。通过它能找到子类负责什么样的数据。
 
 	2. Monitor::preinit()中，调用了
 			paxos->init();

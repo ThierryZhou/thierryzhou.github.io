@@ -110,13 +110,17 @@ spec:
 
 Kubernetes 为了不同的用途，支持几种不同类型的临时卷：
 
-emptyDir： Pod 启动时为空，存储空间来自本地的 kubelet 根目录（通常是根磁盘）或内存
+emptyDir：  
+Pod 启动时为空，存储空间来自本地的 kubelet 根目录（通常是根磁盘）或内存。
 
-configMap、 downwardAPI、 secret： 将不同类型的 Kubernetes 数据注入到 Pod 中
+configMap、 downwardAPI、 secret：  
+将不同类型的 Kubernetes 数据注入到 Pod 中
 
-CSI 临时卷： 类似于前面的卷类型，但由专门支持此特性 的指定 CSI 驱动程序提供
+CSI 临时卷：  
+类似于前面的卷类型，但由专门支持此特性 的指定 CSI 驱动程序提供。
 
-通用临时卷： 它可以由所有支持持久卷的存储驱动程序提供
+通用临时卷：  
+它可以由所有支持持久卷的存储驱动程序提供。
 
 emptyDir、configMap、downwardAPI、secret 是作为 本地临时存储 提供的。它们由各个节点上的 kubelet 管理。
 
@@ -366,19 +370,7 @@ controller 服务的主流程直接写在了main函数中，直接看代码：
 func main() {
 	// ...
 
-	// 快照客户端
-	snapClient, err := snapclientset.NewForConfig(config)
-	if err != nil {
-		klog.Fatalf("Failed to create snapshot client: %v", err)
-	}
-
-	// 资源采集器
-	metricsManager := metrics.NewCSIMetricsManagerWithOptions("", /* driverName */
-		// Will be provided via default gatherer.
-		metrics.WithProcessStartTime(false),
-		metrics.WithSubsystem(metrics.SubsystemSidecar),
-	)
-
+	// 客户端初始化
 	grpcClient, err := ctrl.Connect(*csiEndpoint, metricsManager)
 	if err != nil {
 		klog.Error(err.Error())
@@ -447,10 +439,9 @@ func main() {
 		identity = identity + "-" + node
 	}
 
+	// 创建一个共享的 informer
 	factory := informers.NewSharedInformerFactory(clientset, ctrl.ResyncPeriodOfCsiNodeInformer)
 	var factoryForNamespace informers.SharedInformerFactory 
-
-	// 创建 informer 监听所有资源请求
 
 	// 监听 StorageClass 和 PVC
 	scLister := factory.Storage().V1().StorageClasses().Lister()
@@ -481,49 +472,12 @@ func main() {
 		nodeDeployment.NodeInfo = *nodeInfo
 	}
 
-	// 监听 所有节点 和 CSI 对应的存储节点
+	// 节点监听
 	var nodeLister listersv1.NodeLister
 	var csiNodeLister storagelistersv1.CSINodeLister
 	if ctrl.SupportsTopology(pluginCapabilities) {
 		if nodeDeployment != nil {
-			// Avoid watching in favor of fake, static objects. This is particularly relevant for
-			// Node objects, which can generate significant traffic.
-			csiNode := &storagev1.CSINode{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nodeDeployment.NodeName,
-				},
-				Spec: storagev1.CSINodeSpec{
-					Drivers: []storagev1.CSINodeDriver{
-						{
-							Name:   provisionerName,
-							NodeID: nodeDeployment.NodeInfo.NodeId,
-						},
-					},
-				},
-			}
-			node := &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nodeDeployment.NodeName,
-				},
-			}
-			if nodeDeployment.NodeInfo.AccessibleTopology != nil {
-				for key := range nodeDeployment.NodeInfo.AccessibleTopology.Segments {
-					csiNode.Spec.Drivers[0].TopologyKeys = append(csiNode.Spec.Drivers[0].TopologyKeys, key)
-				}
-				node.Labels = nodeDeployment.NodeInfo.AccessibleTopology.Segments
-			}
-			klog.Infof("using local topology with Node = %+v and CSINode = %+v", node, csiNode)
-
-			// We make those fake objects available to the topology code via informers which
-			// never change.
-			stoppedFactory := informers.NewSharedInformerFactory(clientset, 1000*time.Hour)
-			csiNodes := stoppedFactory.Storage().V1().CSINodes()
-			nodes := stoppedFactory.Core().V1().Nodes()
-			csiNodes.Informer().GetStore().Add(csiNode)
-			nodes.Informer().GetStore().Add(node)
-			csiNodeLister = csiNodes.Lister()
-			nodeLister = nodes.Lister()
-
+			// ...
 		} else {
 			csiNodeLister = factory.Storage().V1().CSINodes().Lister()
 			nodeLister = factory.Core().V1().Nodes().Lister()
@@ -535,7 +489,7 @@ func main() {
 	claimQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "claims")
 	claimInformer := factory.Core().V1().PersistentVolumeClaims().Informer()
 
-	// Setup options
+	// 为 external-provisioner 添加 options
 	provisionerOptions := []func(*controller.ProvisionController) error{
 		controller.LeaderElection(false), // Always disable leader election in provisioner lib. Leader election should be done here in the CSI provisioner level instead.
 		controller.FailedProvisionThreshold(0),
@@ -643,8 +597,7 @@ func main() {
 }
 ```
 
-external-provisioner中所实现的控制器均继承自官方提供的 lib 仓库，下面看一下源码：
-
+provisionController 是定义在 [external-provisioner](https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner) 官方lib库中所实现的控制器，下面看一下源码：
 ```go
 func (ctrl *ProvisionController) Run(ctx context.Context) {
 	run := func(ctx context.Context) {
@@ -697,8 +650,7 @@ func (ctrl *ProvisionController) Run(ctx context.Context) {
 }
 ```
 
-事件处理的 runClaimWorker 和 runVolumeWorker 会去调用我们声明在 external-provsioner 中的Controller Service 接口，具体的调用过程这里不展开，如果有兴趣可以到官方仓库查看源码：  https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner
-
+事件处理的 runClaimWorker 和 runVolumeWorker 会去调用我们声明在 external-provsioner 中的Controller Service 接口，具体的调用过程这里不展开，如果有兴趣可以到[官方仓库](https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner)查看源码
 
 #### 2. 控制器服务结构
 ```go
@@ -792,26 +744,9 @@ func (p *csiProvisioner) Provision(ctx context.Context, options controller.Provi
 
 	return pv, controller.ProvisioningFinished, nil
 }
-
-func (p *csiProvisioner) Delete(ctx context.Context, volume *v1.PersistentVolume) error {
-	// ...
-
-    // 从 PV 中获取 volumeId
-	volumeId := p.volumeHandleToId(volume.Spec.CSI.VolumeHandle)
-
-    // ...
-
-    // 删除 PV 资源，调用 CSI 客户端删除存储卷
-	if err := p.canDeleteVolume(volume); err != nil {
-		return err
-	}
-
-	_, err = p.csiClient.DeleteVolume(deleteCtx, &req)
-
-	return err
-}
 ```
-external-provisioner 职责到这里就结束了，后需要处理将由 kube-controller-manager中的AD controller 来接管。
+
+处理好了 PV 和 PVC 的绑定以后，provisioner 的工作到这里就结束了，后需要处理将由 kube-controller-manager 中的 AD controller 来接管。
 
 #### nfsplugin 源码解析
 ##### 1. 程序入口
@@ -821,11 +756,7 @@ external-provisioner 职责到这里就结束了，后需要处理将由 kube-co
 
 ```go
 func (n *Driver) Run(testMode bool) {
-	versionMeta, err := GetVersionYAML(n.name)
-	if err != nil {
-		klog.Fatalf("%v", err)
-	}
-	klog.V(2).Infof("\nDRIVER INFORMATION:\n-------------------\n%s\n\nStreaming logs below:", versionMeta)
+	// ...
 
 	n.ns = NewNodeServer(n, mount.New(""))
 	s := NewNonBlockingGRPCServer()
@@ -879,18 +810,7 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 		csi.RegisterNodeServer(server, ns)
 	}
 
-	// Used to stop the server while running tests
-	if testMode {
-		s.wg.Done()
-		go func() {
-			// make sure Serve() is called
-			s.wg.Wait()
-			time.Sleep(time.Millisecond * 1000)
-			s.server.GracefulStop()
-		}()
-	}
-
-	klog.Infof("Listening for connections on address: %#v", listener.Addr())
+	// ...
 
 	err = server.Serve(listener)
 	if err != nil {
@@ -899,15 +819,186 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 }
 ```
 
+#### 3. 存储卷生命周期管理
 
+经过AD Controller的调度后，Kubelet知道了当前节点有需要调用 nfscsiplugin 所注册的接口进行生命周期管理的存储卷存储，这个存储卷对应的生命周期是怎样的呢，根据官网上的定义，默认情况下，一个存储卷的生命周期如下：
+```shell
+   CreateVolume +------------+ DeleteVolume
+ +------------->|  CREATED   +--------------+
+ |              +---+----^---+              |
+ |       Controller |    | Controller       v
++++         Publish |    | Unpublish       +++
+|X|          Volume |    | Volume          | |
++-+             +---v----+---+             +-+
+                | NODE_READY |
+                +---+----^---+
+               Node |    | Node
+            Publish |    | Unpublish
+             Volume |    | Volume
+                +---v----+---+
+                | PUBLISHED  |
+                +------------+
+```
 
-#### 1. Provision
+接口下来看一下图表中的业务锁对应的代码
 
+CreateVolume/DeleteVolume, ControllerPublishVolume/ControllerUnpublishVolume这两组接口声明在
+ControllerServer 服务中，代码如下：
+```go
 
-### Kubelet存储管理源码分析
+func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 
+    // ...
 
-### 调度器存储插件源码分析
+    // 创建存储卷
+	nfsVol, err := newNFSVolume(name, reqCapacity, parameters)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	var volCap *csi.VolumeCapability
+	if len(req.GetVolumeCapabilities()) > 0 {
+		volCap = req.GetVolumeCapabilities()[0]
+	}
+	// Mount nfs base share so we can create a subdirectory
+	if err = cs.internalMount(ctx, nfsVol, parameters, volCap); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to mount nfs server: %v", err.Error())
+	}
+	defer func() {
+		if err = cs.internalUnmount(ctx, nfsVol); err != nil {
+			klog.Warningf("failed to unmount nfs server: %v", err.Error())
+		}
+	}()
+
+    
+	fileMode := os.FileMode(mountPermissions)
+	internalVolumePath := getInternalVolumePath(cs.Driver.workingMountDir, nfsVol)
+	if err = os.Mkdir(internalVolumePath, fileMode); err != nil && !os.IsExist(err) {
+		return nil, status.Errorf(codes.Internal, "failed to make subdirectory: %v", err.Error())
+	}
+	if err = os.Chmod(internalVolumePath, fileMode); err != nil {
+		klog.Warningf("failed to chmod subdirectory: %v", err.Error())
+	}
+
+	setKeyValueInMap(parameters, paramSubDir, nfsVol.subDir)
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      nfsVol.id,
+			CapacityBytes: 0,
+			VolumeContext: parameters,
+		},
+	}, nil
+}
+
+// 没实现
+func (cs *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+```
+
+NodePublishVolume/NodeUnpublishVolume 这组接口定义在 nodeserver 服务中，代码如下：
+
+```go
+func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+	// 在节点上挂存储卷
+	mountOptions := volCap.GetMount().GetMountFlags()
+	if req.GetReadonly() {
+		mountOptions = append(mountOptions, "ro")
+	}
+
+	var server, baseDir, subDir string
+	subDirReplaceMap := map[string]string{}
+
+	mountPermissions := ns.Driver.mountPermissions
+	performChmodOp := (mountPermissions > 0)
+	for k, v := range req.GetVolumeContext() {
+		switch strings.ToLower(k) {
+		case paramServer:
+			server = v
+		case paramShare:
+			baseDir = v
+		case paramSubDir:
+			subDir = v
+		case pvcNamespaceKey:
+			subDirReplaceMap[pvcNamespaceMetadata] = v
+		case pvcNameKey:
+			subDirReplaceMap[pvcNameMetadata] = v
+		case pvNameKey:
+			subDirReplaceMap[pvNameMetadata] = v
+		case mountOptionsField:
+			if v != "" {
+				mountOptions = append(mountOptions, v)
+			}
+		case mountPermissionsField:
+			if v != "" {
+				var err error
+				var perm uint64
+				if perm, err = strconv.ParseUint(v, 8, 32); err != nil {
+					return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("invalid mountPermissions %s", v))
+				}
+				if perm == 0 {
+					performChmodOp = false
+				} else {
+					mountPermissions = perm
+				}
+			}
+		}
+	}
+
+	if server == "" {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%v is a required parameter", paramServer))
+	}
+	if baseDir == "" {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("%v is a required parameter", paramShare))
+	}
+	server = getServerFromSource(server)
+	source := fmt.Sprintf("%s:%s", server, baseDir)
+	if subDir != "" {
+		// replace pv/pvc name namespace metadata in subDir
+		subDir = replaceWithMap(subDir, subDirReplaceMap)
+
+		source = strings.TrimRight(source, "/")
+		source = fmt.Sprintf("%s/%s", source, subDir)
+	}
+
+	notMnt, err := ns.mounter.IsLikelyNotMountPoint(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(targetPath, os.FileMode(mountPermissions)); err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+			notMnt = true
+		} else {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+	if !notMnt {
+		return &csi.NodePublishVolumeResponse{}, nil
+	}
+
+	klog.V(2).Infof("NodePublishVolume: volumeID(%v) source(%s) targetPath(%s) mountflags(%v)", volumeID, source, targetPath, mountOptions)
+	err = ns.mounter.Mount(source, targetPath, "nfs", mountOptions)
+	if err != nil {
+		if os.IsPermission(err) {
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		}
+		if strings.Contains(err.Error(), "invalid argument") {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if performChmodOp {
+		if err := chmodIfPermissionMismatch(targetPath, os.FileMode(mountPermissions)); err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	} else {
+		klog.V(2).Infof("skip chmod on targetPath(%s) since mountPermissions is set as 0", targetPath)
+	}
+	klog.V(2).Infof("volume(%s) mount %s on %s succeeded", volumeID, source, targetPath)
+	return &csi.NodePublishVolumeResponse{}, nil
+}
+```
 
 ## 更多技术分享浏览我的博客：  
 https://thierryzhou.github.io
