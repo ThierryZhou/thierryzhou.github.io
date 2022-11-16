@@ -1002,3 +1002,8 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 ## 更多技术分享浏览我的博客：  
 https://thierryzhou.github.io
+
+## 参考
+- [1] [kubenretes官方文档——存储](https://kubernetes.io/zh-cn/docs/concepts/storage/)
+- [2] [csi 官方文档](https://kubernetes-csi.github.io/docs/)
+- [3] [云计算K8s组件系列—- 存储CSI](https://kingjcy.github.io/post/cloud/paas/base/kubernetes/k8s-store-csi/)
