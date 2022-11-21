@@ -4,7 +4,7 @@ tag: ceph
 ---
 
 ## 前置知识——Paxos算法
-#### 1. 角色和名词
+##### 1. 角色和名词
 Proposer：意为提案者，它可以提出一个提案
 Proposal：提案，由Proposer提出。一个提案由一个编号及value形成的对组成，编号是为了防止混淆保证提案的可区分性，value即代表了提案本身的内容。
 
@@ -13,7 +13,7 @@ Choose：提案被选定，在本文中当有半数以上Acceptor接受该提案
 
 Learner：需要知道被选定的提案信息的那些人
 
-#### 2. acceptor接受proposal有什么规则:
+##### 2. acceptor接受proposal有什么规则:
 1) P1: 一个acceptor必须通过(accept)它收到的第一个提案。  
    P1a: 一个acceptor可以接受一个编号为n的提案，只要它还未响应任何编号大于n的prepare请求。  
 
@@ -23,7 +23,7 @@ Learner：需要知道被选定的提案信息的那些人
      b) v是S中所有acceptor通过的编号小于n的具有最大编号的提案的value值。  
    P2c: 决定proposer如何产生proposal
 	
-#### 3. proposer如何产生proposal的算法：
+##### 3. proposer如何产生proposal的算法：
 
 1) proposer选择一个新的提案编号n，然后向某个acceptors集合的成员发送请求，要求acceptor做出如下回应：
   a). 保证不再通过任何编号小于n的提案
@@ -35,13 +35,13 @@ Learner：需要知道被选定的提案信息的那些人
 
 Proposer通过向某个acceptors集合发送需要被通过的提案请求来产生一个提案(此时的acceptors集合不一定是响应prepare阶段请求的那个acceptors集合)。我们称此请求为accept请求。
 
-#### 4. acceptor如何响应上述算法？
+##### 4. acceptor如何响应上述算法？
 
 Acceptor 可以忽略任何请求而不用担心破坏其算法的安全性。  
 Acceptor 必须记住这些信息即使是在出错或者重启的情况下。  
 Proposer 可以总是可以丢弃提案以及它所有的信息—只要它可以保证不会产生具有相同编号的提案即可。  
 
-#### 5. 将proposer和acceptor放在一块，我们可以得到算法的如下两阶段执行过程：
+##### 5. 将proposer和acceptor放在一块，我们可以得到算法的如下两阶段执行过程：
 
 Phase1.
 a) proposer选择一个提案编号n，然后向acceptors的某个majority集合的成员发送编号为n的prepare请求。
@@ -53,19 +53,19 @@ a) 如果proposer收到来自半数以上的acceptor对于它的prepare请求(�
 
 b) 如果acceptor收到一个针对编号n的提案的accept请求，只要它还未对编号大于n的prepare请求作出响应，它就可以通过这个提案。
 
-#### 6. 很容易构造出一种情况，在该情况下，两个proposers持续地生成编号递增的一系列提案。
+##### 6. 很容易构造出一种情况，在该情况下，两个proposers持续地生成编号递增的一系列提案。
 为了保证进度，必须选择一个特定的proposer来作为一个唯一的提案提出者。
 
 如果系统中有足够的组件(proposer，acceptors及通信网络)工作良好，通过选择一个特定的proposer，活性就可以达到。著名的FLP结论指出，一个可靠的proposer选举算法要么利用随机性要么利用实时性来实现—比如使用超时机制。然而，无论选举是否成功，安全性都可以保证。{!即即使同时有2个或以上的proposers存在，算法仍然可以保证正确性}
 
-#### 7. 不同的proposers会从不相交的编号集合中选择自己的编号，这样任何两个proposers就不会有相同编号的提案了。
+##### 7. 不同的proposers会从不相交的编号集合中选择自己的编号，这样任何两个proposers就不会有相同编号的提案了。
 
-#### 8. 关于leader election算法：
+##### 8. 关于leader election算法：
 
 
 ## Ceph Monitor 架构分析
 
-Ceph Monitor 的内部包含kv数据、Paxos模块以及一系列的业务模块。从下往上分别是MonitorDBStore、Paxos、PaxosService、osdmap/monmap/mdsmap...。  
+Ceph Monitor 的内部包含kv数据、Paxos模块以及一系列的业务模块。从下往上分别是MonitorDBStore、Paxos、PaxosService、osdmap/monmap/mdsmap...  
 MonitorDBStore 是对底层DB的抽象封装，将DB的基本操作事务封装成统一接口，当前DB默认使用rocksdb。  
 PaxosService 负责保证每次都只会有一个提案进入paxos流程。  
 Paxos 模块具体实现了multi-Paxos算法。  

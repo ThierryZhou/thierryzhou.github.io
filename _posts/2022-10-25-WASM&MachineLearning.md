@@ -32,7 +32,7 @@ WebAssembly旨在补充并与JavaScript一起运行，使用 WebAssemblyJavaScri
 
 ## [WebAssembly 关键概念](https://developer.mozilla.org/en-US/docs/WebAssembly/Concepts#webassembly_key_concepts)
 
-了解 WebAssembly 如何在浏览器中运行需要几个关键概念。[所有这些概念都在](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly)[WebAssembly JavaScript API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly)中 1:1 反映。
+了解 WebAssembly 如何在浏览器中运行需要几个关键概念。所有这些概念都在[WebAssembly JavaScript API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly)中 1:1 反映。
 
 Module ： 表示已被浏览器编译成可执行机器代码的 WebAssembly 二进制文件。Module 是无状态的，因此，像
 一样[Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob)，可以在 windows 和 worker 之间显式共享（通过[postMessage()](https://developer.mozilla.org/en-US/docs/Web/API/MessagePort/postMessage)）。Module 声明导入和导出就像 ES 模块一样。
@@ -69,7 +69,7 @@ Emscripten 首先将 C/C++ 输入到 clang+LLVM( C/C++ 编译器工具链)，将
 
 WebAssembly 本身目前无法直接访问 DOM；它只能调用 JavaScript，传入整数和浮点原始数据类型。因此，要访问任何 Web API，WebAssembly 需要调用 JavaScript，然后 JavaScript 会调用 Web API。因此，Emscripten 创建了实现此目的所需的 HTML 和 JavaScript 粘合代码。
 
-要使 WebAssembly 可用，我们需要两个主要组件：将代码编译成 WebAssembly 的工具链，以及可以执行该输出的浏览器。这两个组件都依赖于完成 WebAssembly[规范](https://github.com/WebAssembly/spec)的进展，但除此之外，很大程度上是独立的工程工作。这种分离是一件好事，因为它将使编译器能够发出在任何浏览器中运行的 WebAssembly，并且无论是哪个编译器生成它，浏览器都可以运行 WebAssembly；换句话说，它允许多个工具链和多个浏览器协同工作，改善用户选择。分离还允许两个组件的工作立即并行进行。
+要使 WebAssembly 可用，我们需要两个主要组件：将代码编译成 WebAssembly 的工具链，以及可以执行该输出的浏览器。这两个组件都依赖于完成[WebAssembly 规范](https://github.com/WebAssembly/spec)的进展，但除此之外，很大程度上是独立的工程工作。这种分离是一件好事，因为它将使编译器能够发出在任何浏览器中运行的 WebAssembly，并且无论是哪个编译器生成它，浏览器都可以运行 WebAssembly；换句话说，它允许多个工具链和多个浏览器协同工作，改善用户选择。分离还允许两个组件的工作立即并行进行。
 
 ```shell
 git clone https://github.com/emscripten-core/emsdk.git
@@ -80,7 +80,7 @@ cd emsdk
 
 ./emsdk activate latest
 
-source ./emsdk\_env.sh
+source ./emsdk_env.sh
 ```
 
 在你的IDE中复制如下代码：
@@ -127,7 +127,7 @@ WebAssembly SIMD 提案中包含的一组操作由在各种平台上得到很好
 
 **在Chrome 中的 SIMD 支持**
 
-默认情况下，Chrome 91 提供 WebAssembly SIMD 支持。确保使用最新版本的工具链，如下所述，以及最新的 wasm-feature-detect 来检测支持最终版本规范的引擎。如果某些地方看起来不正确，请[提交错误](https://crbug.com/v8)。
+默认情况下，Chrome 91 提供 WebAssembly SIMD 支持。确保使用最新版本的工具链，如下所述，以及最新的 wasm-feature-detect 来检测支持最终版本规范的引擎。
 
 **在 Firefox 中启用实验性 SIMD 支持**
 
@@ -144,7 +144,6 @@ WebAssembly SIMD 在 Firefox 的标志后面可用。目前它仅在 x86 和 x86
 ![tvm](/assets/images/posts/tvm-1.png)
 
 ### Apache TVM
-![Apache TVM 将机器学习编译为 WASM 和 WebGPU](https://www.cnblogs.com/wujianming-110117/p/14811667.html)
 
 在Apache TVM深度学习编译器中引入了WASM和WebGPU的支持。实验表明，在将模型部署到Web时，TVM的WebGPU后端可以接近本机 GPU的性能。
 

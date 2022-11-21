@@ -41,8 +41,8 @@ EOF
 
 ### Workflow
 
-在一个 Workflow 中，其 spec 中有一个名为 templates 的字段，在其中至少需要一个 template 作为其组成的任务。
-
+在一个 Workflow 中，其 spec 下一般会声明两个属性，一个名为 templates 的字段，表示资源模板信息，语法上与Pod.Spec.Templates 类似；另一个字段为 entrypoint 表示在其中至少需要一个 template 作为其组成的任务。
+Workflow 不仅表示工作流被调度的实体，并且还会保存工作流的工作状态，因此 Workflow 不应该被当做不可改变的静态对象。
 
 在这个例子中，该 Workflow 的 templates 字段中指定了一个类型为 container 的 template，使用了 whalesay 镜像。
 

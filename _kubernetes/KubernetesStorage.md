@@ -210,7 +210,6 @@ Mount/Unmount （挂载和摘除目录，处理的是volumes和pod之间的关�
 
 #### CSI 简介
 
-
 csi插件的实现，官方已经封装好的lib，我们只要实现对应的接口就可以了，目前我们可以实现的插件有两种类型，如下：
 
 Controller Plugin，负责存储对象（Volume）的生命周期管理，在集群中仅需要有一个即可；
@@ -337,6 +336,7 @@ VolumeManagerReconciler 控制循环检查到它需要执行 Mount 操作的时�
 
 
 nfs plugin 项目路径： https://github.com/kubernetes-sigs/csi-driver-nfs
+
 nfs controller 项目路径：https://github.com/kubernetes-sigs/external-provisioner
 
 #### 部署
@@ -699,7 +699,6 @@ func (p *csiProvisioner) Provision(ctx context.Context, options controller.Provi
 	}
 
 	// ...
-
 
 	// 将 PV 创建得到的返回值写回到预处理结果中
 	if len(volCaps) == 1 && volCaps[0].GetAccessMode().GetMode() == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY && p.controllerPublishReadOnly {
