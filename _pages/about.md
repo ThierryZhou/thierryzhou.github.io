@@ -17,3 +17,5 @@ author_profile: true
 4. 准备面试过程中会总结一下面经留作回顾。
 
 在这个博客是基于Github Pages搭建，可以在项目的issue里面给我浏览，项目地址: https://github.com/ThierryZhou/thierryzhou.github.io/issues
+
+我的博客即将同步至腾讯云开发者社区，邀请大家一同入驻：https://cloud.tencent.com/developer/support-plan?invite_code=2z8tkui41zuo4

@@ -1,10 +1,15 @@
 ---
-title: CephFS FAQ 总结
+title: 在生产环境中使用CephFS以及CephFS的 FAQ 总结
 tag: ceph
 ---
 ## 前言
 
 CephFS是目前为性能可靠并且较为成熟可靠的分布式文件系统，但是作为分布式文件系统其复杂成都也是相当高的，如果要在生产环境中使用它，首先我们需要做好各种灾备方案，并且熟悉CephFS的故障处理流程。
+
+## 生产环境准备
+
+
+### Ceph FAQ
 
 ##### 1.如何解决CephFS MDS服务无法进入active状态的问题？
 ```shell

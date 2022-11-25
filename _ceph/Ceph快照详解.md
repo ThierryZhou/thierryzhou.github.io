@@ -7,99 +7,222 @@ Ceph快照功能基于RADOS实现，但是从使用方法上分成三种情况�
 
 1. Pool Snapshot 对整个Pool打快照，该Pool中所有的对象都会受影响。
 2. Self Managed Snapshot 用户管理的快照，Pool受影响的对象是受用户控制的，这里的用户往往是应用，如librbd。常见的形式就是针对某一个rbd卷进行快照。
-3. 用于CephFS的快照，其中基于CephFS的快照由于CephFS一直是不稳定的功能所以默认关闭并且被描述为实验性质的功能，不推荐使用。即使是在CephFS第一个正式版本的Jewel（2016-06）中，CephFS-snapshot仍然是不推荐使用的功能。
+3. 用于CephFS的快照，在Ceph 16.x以后的版本中，CephFS默认情况下已经开启了快照功能的，但是由于CephFS的快照也是基于Pool Snapshot开发的因此在多文件系统的情况时，MDS的集群之间snapID相互独立，这个快照管理带来了极大的不便，此种情况下官方不推荐开启快照功能。
 
-## 快照的使用
-image快照与pool快照
-image快照与pool快照是互斥的，创建了image的存储池无法创建存储池的快照，因为存储池当前已经为unmanaged snaps mode了，而没有创建image的就可以做存储池快照。而如果创建了pool快照则无法创建image快照。
-
-image快照的创建命令形如：rbd snap create {pool-name}/{image-name}@{snap-name}回滚命令形如：rbd snap rollback {pool-name}/{image-name}@{snap-name}
-
-## CephFS快照
-该功能属于实验性质的功能，不能应用与生产环境中。基本创建方法为在集群被挂载之后执行mkdir .snap/snapname，其中snapname为快照的名称。恢复数据的命令形如cp -ra .snap/snap1/* ./，删除快照的命令形如rmdir .snap/snap1
-
-## 快照的原理
+### 快照的原理
 
 Ceph的快照与其他系统的快照一样，是基于COW(copy-on-write)实现的。其实现由RADOS支持，基于OSD服务端——每次做完快照后再对卷进行写入时就会触发COW操作，即先拷贝出原数据对象的数据出来生成快照对象，然后对原数据对象进行写入。于此同时，每次快照的操作会更新卷的元数据，以及包括快照ID，快照链，parent信息等在内的快照信息。
 
-需要注意的一点是克隆依赖快照的实现，克隆是在一个快照的基础上实现了可写的功能，类似于通常所说的可写快照，但是克隆和快照在实现层面上是完全不同的——快照是RADOS支持的，基于OSD客户端，而RBD的克隆操作是RBD客户端实现的一种COW操作，对于OSD的Server是无感知的。
+此外image快照和pool快照的区别是由不同的使用方式导致的，底层的实现没有本质上的区别。从OSD的角度看，池快照和自管理的快照之间的区别在于SnapContext是通过客户端的MOSDOp还是通过最新的OSDMap到达osd。
 
-此外image快照和pool快照的区别是由不同的使用方式导致的，底层的实现没有本质上的区别。从OSD的角度看，池快照和自管理的快照之间的区别在于SnapContext是通过客户端的MOSDOp还是通过最新的OSDMap到达osd。这一点将在快照的实现细节方面详述（OSD::make_writeable）。
+### 快照的使用
+**image快照与pool快照**
+image快照与pool快照是互斥的，创建了image的存储池无法创建存储池的快照，因为存储池当前已经为unmanaged snaps mode了，而没有创建image的就可以做存储池快照。而如果创建了pool快照则无法创建image快照。
 
-#### 快照的实现
-##### 快照的相关概念
-pool： 每个池都是逻辑上的隔离单位，不同的pool可以有不同的数据处理方式，包括：副本数，Placement Groups，CRUSH。 Rules，快照，ownership都是通过池隔离。
+
+```shell
+// image快照的创建命令：
+rbd snap create {pool-name}/{image-name}@{snap-name}
+
+// 回滚命令：
+rbd snap rollback {pool-name}/{image-name}@{snap-name}
+```
+
+**CephFS快照**
+CephFS的无法通过命令行直接操作，需要通过操作文件夹的方式来操作快照
+
+```shell
+// 为某个文件夹创建快照
+mkdir .snap/snapname // snapname为快照的名称
+
+//恢复数据的命令
+p -ra .snap/snap1/* ./ 
+//删除快照的命令
+
+rmdir .snap/snap1
+```
+
+### 快照的实现
+#### 快照的相关概念
+pool： 每个池都是逻辑上的隔离单位，不同的pool可以有不同的数据处理方式，包括：ReplicasSet，Placement Groups，CRUSH。 (Rules，Snapshot，ownership都是通过池隔离。)
+
 head对象：卷原始对象，包含了SnapSet（详见关键数据结构部分）。
+
 snap对象：卷打快照后通过cow拷贝出来的对象，该对象为只读。
+
 snap_seq: 快照的序列号（详见关键数据结构部分）。
+
 snapdir对象： head对象被删除后，仍然有snap和clone对象，系统自动创建一个snapdir对象来保存snapset的信息。（详见关键数据结构部分）。
+
 rbd_header对象： 在rados中，对象里没有数据，卷的元数据都是作为这个对象的属性以omap方式记录到leveldb里。
-关键数据结构
-快照的关键数据结构如下：
-SnapContext在客户端中保存snap相关的信息，是当前为对象定义的快照合集。这个结构持久化的存储在RBD的元数据中。
 
+#### 快照的代码实现
+使用 librados api 创建快照，其代码如下：
 ```cpp
-//代码来源：librados/IoCtxImpl.h
+#include <iostream>
+#include <string>
+#include <rados/librados.hpp>
+
+int main(int argc, const char **argv)
+{
+        int ret = 0;
+
+        librados::Rados rados;
+        librados::IoCtx io_ctx
+        char cluster_name[] = "ceph";
+        char user_name[] = "client.admin";
+        uint64_t flags = 0;
+
+        /* 初始化一个ceph集群对象 */
+        {
+                ret = rados.init2(user_name, cluster_name, flags);
+                if (ret < 0) {
+                        std::cerr << "Couldn't initialize the cluster handle! error " << ret << std::endl;
+                        return EXIT_FAILURE;
+                } else {
+                        std::cout << "Created a cluster handle." << std::endl;
+                }
+
+                ret = rados.conf_read_file("/etc/ceph/ceph.conf");
+                if (ret < 0) {
+                        std::cerr << "Couldn't read the Ceph configuration file! error " << ret << std::endl;
+                        return EXIT_FAILURE;
+                } else {
+                        std::cout << "Read the Ceph configuration file." << std::endl;
+                }
+
+                ret = rados.conf_parse_argv(argc, argv);
+                if (ret < 0) {
+                        std::cerr << "Couldn't parse command line options! error " << ret << std::endl;
+                        return EXIT_FAILURE;
+                } else {
+                        std::cout << "Parsed command line options." << std::endl;
+                }
+
+                ret = rados.connect();
+                if (ret < 0) {
+                        std::cerr << "Couldn't connect to cluster! error " << ret << std::endl;
+                        return EXIT_FAILURE;
+                } else {
+                        std::cout << "Connected to the cluster." << std::endl;
+                }
+        }
+
+        /* 创建存储池，并创建快照 */
+        {
+            rados.ioctx_create("my_test_pool", io_ctx);
+            io_ctx.stat(&stats);
+
+            // 创建快照
+            int oid = io_ctx.snap_create("my_test_snapshot");
+
+            // 使用快照，恢复快照
+            io_ctx.snap_rollback(oid, "my_test_snapshot");
+        }
+
+        return 0;
+}
+```
+IoCtx 对象是 C++ API 接口中关于 IO Content 的抽象层，对应的底层实现在 IoCtxImpl 中，声明如下：
+
+接下来看是 snap_create 和 snap_rollback 的代码：
+```cpp
+// src/include/rados/librados.hpp
+claszs CEPH_RADOS_API IoCtx
+{
+// ...
+  private:
+    // 通过友元只允许 Rados 对象可以创建 IoCtx 对象
+    IoCtx(IoCtxImpl *io_ctx_impl_);
+
+    friend class Rados;
+    friend class libradosstriper::RadosStriper;
+    friend class ObjectWriteOperation;
+    friend class ObjectReadOperation;
+
+    IoCtxImpl *io_ctx_impl;
+};
+
+// 代码来源：src/librados/IoCtxImpl.h
 struct librados::IoCtxImpl {
-  // ...
-  snapid_t snap_seq;   //根据是否有快照值为snap的快照序号或者CEPH_NOSNAP
-  ::SnapContext snapc;
-  // ...
+  std::atomic<uint64_t> ref_cnt = { 0 };
+  RadosClient *client = nullptr;
+  int64_t poolid = 0;
+  snapid_t snap_seq;        //根据是否有快照值为snap的快照序号或者CEPH_NOSNAP
+  ::SnapContext snapc;      // 快照上下文
+// ...
 };
 ```
-
 在IoCtxImpl里的snap_seq也被称为快照的id，当打开一个image时，如果打开的是一个卷的快照，则该值为快照对应的序号，否则该值为CEPH_NOSNAP表示操作的不是卷的快照，是卷自身。
-
 ```cpp
-// SnapContext在common/snap_types.h中定义：
+// src/librados/IoCtx.cc
+int librados::IoCtx::snap_create(const char *snapname)
+{
+  return io_ctx_impl->snap_create(snapname);
+}
 
-struct SnapContext {
-  snapid_t seq;            // 'time' stamp（最新的快照序列号）
-  vector<snapid_t> snaps;  // 当前存在的快照序号，降序排列
-  // ...
-};
-```
-SnapSet是在ceph的服务端也就是osd端保存快照的对象（引自：osd_types.h）:
 
-```cpp
-struct SnapSet {
-  snapid_t seq; //最新的快照序列号
-  bool head_exists; //head对象是否存储/存在
-  vector<snapid_t> snaps;    // 所有快照序号的降序列表
-  vector<snapid_t> clones;   // 所有clone对象的序号升序列表。保存在做完快照后，对原对象进行写入时触发cow进行clone的快照序号，注意并不是每个快照都需要clone对象，只有做完快照后，对相应的对象进行写入操作时才会clone去拷贝数据；
-  map<snapid_t, interval_set<uint64_t> > clone_overlap;  // 与上次clone对象的overlap的部分，记录在其clone数据对象后，也就是原数据对象上未写过的数据部分，是采用offset~len的方式进行记录的，比如{2=[0~1646592,1650688~12288,1667072~577536]}；
-  map<snapid_t, uint64_t> clone_size;//clone对象的size（有的对象一开始并不是默认的对象大小）
-  // ...
-};
-```
-该数据结构保存在OSD端快照的相关信息，将会跟踪：
-对象的全部的快照集合，当前存在的全部克隆，克隆的大小，其中的clone_overlap保存本次clone对象和上次clone对象的重叠（overlap）部分，clone操作之后，每次的写操作都要维护这个信息。这个信息用于在数据恢复阶段对象恢复的优化。
+int librados::IoCtx::snap_rollback(const std::string& oid, const char *snapname)
+{
+  return io_ctx_impl->rollback(oid, snapname);
+}
 
-```cpp
-// osd/ReplicatedBackend.h:
+// src/librados/librados_cxx.cc
+int librados::IoCtxImpl::snap_create(const char *snapName)
+{
+  int reply;
+  string sName(snapName);
 
-  struct OpContext {
-    // ...
-    const SnapSet *snapset; //旧的SnapSet，也就是OSD服务端保存的快照信息
-    SnapSet new_snapset;  // 新的SnapSet，也就是写操作过后生成的结果
-    SnapContext snapc;   //写操作带的客户端的SnapContext信息
-    // ...
-};
+  ceph::mutex mylock = ceph::make_mutex("IoCtxImpl::snap_create::mylock");
+  ceph::condition_variable cond;
+  bool done;
+  Context *onfinish = new C_SafeCond(mylock, cond, &done, &reply);
+  objecter->create_pool_snap(poolid, sName, onfinish);
+
+  std::unique_lock l{mylock};
+  cond.wait(l, [&done] { return done; });
+  return reply;
+}
+
+int librados::IoCtxImpl::selfmanaged_snap_rollback_object(const object_t& oid,
+							  ::SnapContext& snapc,
+							  uint64_t snapid)
+{
+  int reply;
+
+  ceph::mutex mylock = ceph::make_mutex("IoCtxImpl::snap_rollback::mylock");
+  ceph::condition_variable cond;
+  bool done;
+  Context *onack = new C_SafeCond(mylock, cond, &done, &reply);
+
+  ::ObjectOperation op;
+  prepare_assert_ops(&op);
+  op.rollback(snapid);
+  objecter->mutate(oid, oloc,
+		   op, snapc, ceph::real_clock::now(),
+		   extra_op_flags,
+		   onack, NULL);
+
+  std::unique_lock l{mylock};
+  cond.wait(l, [&done] { return done; });
+  return reply;
+}
+
+int librados::IoCtxImpl::rollback(const object_t& oid, const char *snapName)
+{
+  snapid_t snap;
+
+  int r = objecter->pool_snap_by_name(poolid, snapName, &snap);
+  if (r < 0) {
+    return r;
+  }
+
+  return selfmanaged_snap_rollback_object(oid, snapc, snap);
+}
 ```
 
 ##### 快照的创建
-创建rbd快照基本步骤如下：
-
-向monitor发送请求，获取一个最新的快照序号snap_seq，monitor会递增该pool的snap_seq，然后将该值返回给librbd。
-librbd将新的snap_seq替换到原来的image中，snap_name和snap_seq将会被保存到rbd的元数据中。
-快照的写
-当做了多次快照的情况下，Ceph采用的方法是旧有快照引用新的快照，这里举一个例子来说明这一情况：
-
-假设有镜像（卷）中已经有a，b两个文件，此时进行第一次快照记做snap1，然后修改a文件，系统将会把原始镜像中的a文件的数据拷贝到snap1中，直接在原始镜像中进行读写。
-
-这个时候我们进行第二次快照，记做snap2，然后我们修改a，b两个文件，a文件会直接生成a文件对应的快照，而对于b文件，由于在第一次快照后没有进行修改，系统会直接将原镜像的数据拷贝出来生成快照镜像。这就是所谓的旧快照引用新快照（当需要恢复到snap1节点的时候，snap1将引用snap2的数据来还原原始数据）
-
-更具体的说每个快照都保留一个snap_seq，Image可以看成一个Head Version的Snapshot，客户端写操作，必须带SnapContex结构，也就是需要带最新的快照序号seq和所有的快照序号snaps。
+接下来经过 objecter 的处理以后，snapshot 请求被发送给 mon 服务端，经过一些的消息转发，snapshot的请求会被转发到 OSDMonitor 中处理。
 
 在OSD端，对象的Snap相关的信息保存在SnapSet数据结构中，每次IO操作都会带上snap_seq发送给OSD，OSD会查询该IO操作涉及的object的snap_seq情况。当创建一个快照以后，对镜像中的对象进行写操作时会带上新的snap_seq，Ceph接到请求后会先检查对象的Head Version，如果发现该写操作所带有的snap_seq大于原本对象的snap_seq，那么就会对原来的对象克隆一个新的Object Head Version，原来的对象会作为Snapshot，新的Object Head会带上新的snap_seq，也就是librbd之前申请到的。
 
@@ -107,44 +230,470 @@ ceph也有一套Watcher回调通知机制，当别的的客户端做了快照，
 
 具体到代码流程如下：
 
-判断服务端的快照序号，如果大于客户端的序号，则用服务端的快照信息更新客户端的信息，需要注意的是客户端的序号是不允许小于服务端的序号的，如发生服务端的序号大于客户端的序号则参见上述的watcher回调通知机制。
-把已经删除的快照过滤掉。
-如果head对象存在切snaps的size不为空，并且客户端的最新快照序号大于服务端的最新快照序号，则需要克隆对象。
-克隆完成后修改clone_overlap和clone_size的记录。
-更新服务端快照信息。
-源码实现：osd/ReplicatedPG.cc
-void ReplicatedPG::make_writeable(OpContext *ctx)
+1. 判断服务端的快照序号，如果大于客户端的序号，则用服务端的快照信息更新客户端的信息，需要注意的是客户端的序号是不允许小于服务端的序号的，如发生服务端的序号大于客户端的序号则参见上述的watcher回调通知机制。
+2. 把已经删除的快照过滤掉。
+3. 如果head对象存在切snaps的size不为空，并且客户端的最新快照序号大于服务端的最新快照序号，则需要克隆对象。
+4. 克隆完成后修改clone_overlap和clone_size的记录。
+5. 更新服务端快照信息。
+```cpp
+// 源码实现：src/mon/OSDMonitor.cc
+bool OSDMonitor::prepare_pool_op(MonOpRequestRef op)
+{
+  // pg_pool_t *pp;
+  // ...
+  switch (m->op) {
+  case POOL_OP_CREATE_SNAP:
+    if (!pp.snap_exists(m->name.c_str())) {
+      pp.add_snap(m->name.c_str(), ceph_clock_now());
+      dout(10) << "create snap in pool " << m->pool << " " << m->name
+	       << " seq " << pp.get_snap_epoch() << dendl;
+      changed = true;
+    }
+    break;
 
-##### 快照的读
-快照读取时，输入参数为rbd的name和快照的名字。rbd的客户端通过访问rbd的元数据，来获取快照对应的snap_id，也就是快照对应的snap_seq值。
+  case POOL_OP_DELETE_SNAP:
+    {
+      snapid_t s = pp.snap_exists(m->name.c_str());
+      if (s) {
+	pp.remove_snap(s);
+	pending_inc.new_removed_snaps[m->pool].insert(s);
+	changed = true;
+      }
+    }
+    break;
 
-在osd端，获取head对象保存的SnapSet数据结构。然后根据snaps和clones来计算快照所对应的正确的快照对象。
+  case POOL_OP_CREATE_UNMANAGED_SNAP:
+    {
+      uint64_t snapid = pp.add_unmanaged_snap(
+	osdmap.require_osd_release < ceph_release_t::octopus);
+      encode(snapid, reply_data);
+      changed = true;
+    }
+    break;
+
+  case POOL_OP_DELETE_UNMANAGED_SNAP:
+    if (!_is_removed_snap(m->pool, m->snapid) &&
+	!_is_pending_removed_snap(m->pool, m->snapid)) {
+      if (m->snapid > pp.get_snap_seq()) {
+        _pool_op_reply(op, -ENOENT, osdmap.get_epoch());
+        return false;
+      }
+      pp.remove_unmanaged_snap(
+	m->snapid,
+	osdmap.require_osd_release < ceph_release_t::octopus);
+      pending_inc.new_removed_snaps[m->pool].insert(m->snapid);
+      // also record the new seq as purged: this avoids a discontinuity
+      // after all of the snaps have been purged, since the seq assigned
+      // during removal lives in the same namespace as the actual snaps.
+      pending_pseudo_purged_snaps[m->pool].insert(pp.get_snap_seq());
+      changed = true;
+    }
+    break;
+
+  case POOL_OP_AUID_CHANGE:
+    _pool_op_reply(op, -EOPNOTSUPP, osdmap.get_epoch());
+    return false;
+
+  default:
+    ceph_abort();
+    break;
+  }
+
+  if (changed) {
+    pp.set_snap_epoch(pending_inc.epoch);
+    pending_inc.new_pools[m->pool] = pp;
+  }
+
+ out:
+  wait_for_finished_proposal(op, new OSDMonitor::C_PoolOp(this, op, ret, pending_inc.epoch, &reply_data));
+  return true;
+}
+
+// 只列举 pg_pool_t 对象中 add_snap 的操作如何实现：
+void pg_pool_t::add_snap(const char *n, utime_t stamp)
+{
+  ceph_assert(!is_unmanaged_snaps_mode());
+  flags |= FLAG_POOL_SNAPS;
+  snapid_t s = get_snap_seq() + 1;
+  snap_seq = s;
+  snaps[s].snapid = s;
+  snaps[s].name = n;
+  snaps[s].stamp = stamp;
+}
+```
+
+前文提到过快照通过 COW 方式实现，在没有发生变化是通过集群我们只能观测到 snapid 的变化，快照和原数据是同一份数据，只有当发生了数据写时，Ceph 才会为快照生成相应的数据。写请求从客户端到Ceph 服务的流程如下所示：
+
+![osd-dispatch](/assets/images/ceph/ceph-osd-dispatch.png)
+
+先看一下关键数据结构的定义：
 
 ```cpp
-// 源码实现：osd/ReplicatedPG.cc
+// // 源码实现：src/osd/PrimaryLogPG.h
+class PrimaryLogPG : public PG, public PGBackend::Listener {
+  friend class OSD;
+  friend class Watch;
+  friend class PrimaryLogScrub;
 
-int ReplicatedPG::find_object_context(const hobject_t& oid,
-				      ObjectContextRef *pobc,
-				      bool can_create,
-				      bool map_snapid_to_clone,
-				      hobject_t *pmissing);
+  // ...
+  struct OpContext {
+    // ...
+    const SnapSet *snapset; //旧的SnapSet，也就是OSD服务端保存的快照信息
+    SnapSet new_snapset;  // 新的SnapSet，也就是写操作过后生成的结果
+    SnapContext snapc;   //写操作带的客户端的SnapContext信息
+    // ...
+  }
+  // ...
+};
+
+// 代码路径：src/osd/osd_types.h
+// SnapSet 是在ceph的服务端(也就是osd端)保存快照集合的对象
+struct SnapSet {
+  snapid_t seq;              //最新的快照序列号
+  
+  vector<snapid_t> snaps;    // 所有快照序号的降序列表
+  vector<snapid_t> clones;   // 所有clone对象的序号升序列表。保存在做完快照后，对原对象进行写入时触发cow进行clone的快照序号，注意并不是每个快照都需要clone对象，只有做完快照后，对相应的对象进行写入操作时才会clone去拷贝数据；
+  map<snapid_t, interval_set<uint64_t> > clone_overlap;  // 与上次clone对象的overlap的部分，记录在其clone数据对象后，也就是原数据对象上未写过的数据部分，是采用offset~len的方式进行记录的，比如{2=[0~1646592,1650688~12288,1667072~577536]}；
+  map<snapid_t, uint64_t> clone_size;   //clone对象的size（有的对象一开始并不是默认的对象大小
+  
+  SnapSet() : seq(0) {}
+  explicit SnapSet(ceph::buffer::list& bl) {
+    auto p = std::cbegin(bl);
+    decode(p);
+  }
+
+  /// librados::snap_set_t 发布快照
+  void from_snap_set(const librados::snap_set_t& ss, bool legacy);
+
+  // 数据处理
+  uint64_t get_clone_bytes(snapid_t clone) const;
+
+  void encode(ceph::buffer::list& bl) const;
+  void decode(ceph::buffer::list::const_iterator& bl);
+  void dump(ceph::Formatter *f) const;
+  static void generate_test_instances(std::list<SnapSet*>& o);  
+
+  SnapContext get_ssc_as_of(snapid_t as_of) const {
+    SnapContext out;
+    out.seq = as_of;
+    for (auto p = clone_snaps.rbegin();
+	 p != clone_snaps.rend();
+	 ++p) {
+      for (auto snap : p->second) {
+	if (snap <= as_of) {
+	  out.snaps.push_back(snap);
+	}
+      }
+    }
+    return out;
+  }
+
+  SnapSet get_filtered(const pg_pool_t &pinfo) const;
+  void filter(const pg_pool_t &pinfo);
+};
 ```
+SnapContext 在客户端中保存 snap 相关的信息，是当前为对象定义的快照合集。PrimaryLogPG 透过 SnapContext 跟踪对象的全部的快照集合，当前存在的全部克隆，克隆的大小。PrimaryLogPG 通过 new_snap 和 snapc 的比较感知到快照已经过期；另外SnapContext 的 clone_overlap 保存本次clone对象和上次clone对象的重叠（overlap）部分，clone 操作之后，每次的写操作都要维护这个信息。这个信息用于在数据恢复阶段对象恢复的优化。
+
+make_writeable 中封装了一部分逻辑处理的功能，更详细的功能感兴趣的同学可以自己的看一下把真个流程梳理出来，篇幅有限这里就不再展开更多的源码内容。
+```cpp
+void PrimaryLogPG::make_writeable(OpContext *ctx)
+{
+  // ...
+
+  // 存在快照并且快照已经不是最新的
+  if ((ctx->obs->exists && !ctx->obs->oi.is_whiteout()) &&
+      snapc.snaps.size() &&
+      !ctx->cache_operation &&
+      snapc.snaps[0] > ctx->new_snapset.seq) {
+
+    hobject_t coid = soid;
+    coid.snap = snapc.seq;
+
+    const auto snaps = [&] {
+      auto last = find_if_not(
+        begin(snapc.snaps), end(snapc.snaps),
+        [&](snapid_t snap_id) { return snap_id > ctx->new_snapset.seq; });
+      return vector<snapid_t>{begin(snapc.snaps), last};
+    }();
+
+    // 准备 clone
+    object_info_t static_snap_oi(coid);
+    object_info_t *snap_oi;
+    if (is_primary()) {
+      ctx->clone_obc = object_contexts.lookup_or_create(static_snap_oi.soid);
+      ctx->clone_obc->destructor_callback =
+	new C_PG_ObjectContext(this, ctx->clone_obc.get());
+      ctx->clone_obc->obs.oi = static_snap_oi;
+      ctx->clone_obc->obs.exists = true;
+      ctx->clone_obc->ssc = ctx->obc->ssc;
+      ctx->clone_obc->ssc->ref++;
+      if (pool.info.is_erasure())
+	ctx->clone_obc->attr_cache = ctx->obc->attr_cache;
+      snap_oi = &ctx->clone_obc->obs.oi;
+      if (ctx->obc->obs.oi.has_manifest()) {
+	if ((ctx->obc->obs.oi.flags & object_info_t::FLAG_REDIRECT_HAS_REFERENCE) &&
+	    ctx->obc->obs.oi.manifest.is_redirect()) {
+	  snap_oi->set_flag(object_info_t::FLAG_MANIFEST);
+	  snap_oi->manifest.type = object_manifest_t::TYPE_REDIRECT;
+	  snap_oi->manifest.redirect_target = ctx->obc->obs.oi.manifest.redirect_target;
+	} else if (ctx->obc->obs.oi.manifest.is_chunked()) {
+	  snap_oi->set_flag(object_info_t::FLAG_MANIFEST);
+	  snap_oi->manifest.type = object_manifest_t::TYPE_CHUNKED;
+	  snap_oi->manifest.chunk_map = ctx->obc->obs.oi.manifest.chunk_map;
+	} else {
+	  ceph_abort_msg("unrecognized manifest type");
+	}
+      }
+      bool got = ctx->lock_manager.get_write_greedy(
+	coid,
+	ctx->clone_obc,
+	ctx->op);
+      ceph_assert(got);
+      dout(20) << " got greedy write on clone_obc " << *ctx->clone_obc << dendl;
+    } else {
+      snap_oi = &static_snap_oi;
+    }
+    snap_oi->version = ctx->at_version;
+    snap_oi->prior_version = ctx->obs->oi.version;
+    snap_oi->copy_user_bits(ctx->obs->oi);
+
+    _make_clone(ctx, ctx->op_t.get(), ctx->clone_obc, soid, coid, snap_oi);
+
+    ctx->delta_stats.num_objects++;
+    if (snap_oi->is_dirty()) {
+      ctx->delta_stats.num_objects_dirty++;
+      osd->logger->inc(l_osd_tier_dirty);
+    }
+    if (snap_oi->is_omap())
+      ctx->delta_stats.num_objects_omap++;
+    if (snap_oi->is_cache_pinned())
+      ctx->delta_stats.num_objects_pinned++;
+    if (snap_oi->has_manifest())
+      ctx->delta_stats.num_objects_manifest++;
+    ctx->delta_stats.num_object_clones++;
+    ctx->new_snapset.clones.push_back(coid.snap);
+    ctx->new_snapset.clone_size[coid.snap] = ctx->obs->oi.size;
+    ctx->new_snapset.clone_snaps[coid.snap] = snaps;
+
+    // 将快照重叠部分保存到 clone_overlap 中
+    ctx->new_snapset.clone_overlap[coid.snap];
+    if (ctx->obs->oi.size) {
+      ctx->new_snapset.clone_overlap[coid.snap].insert(0, ctx->obs->oi.size);
+    }
+
+    // log clone
+    dout(10) << " cloning v " << ctx->obs->oi.version
+	     << " to " << coid << " v " << ctx->at_version
+	     << " snaps=" << snaps
+	     << " snapset=" << ctx->new_snapset << dendl;
+    ctx->log.push_back(pg_log_entry_t(
+			 pg_log_entry_t::CLONE, coid, ctx->at_version,
+			 ctx->obs->oi.version,
+			 ctx->obs->oi.user_version,
+			 osd_reqid_t(), ctx->new_obs.oi.mtime, 0));
+    encode(snaps, ctx->log.back().snaps);
+
+    ctx->at_version.version++;
+  }
+
+  // 更新 clone_overlap 的数据和状态。
+  if (ctx->new_snapset.clones.size() > 0) {
+    hobject_t last_clone_oid = soid;
+    last_clone_oid.snap = ctx->new_snapset.clone_overlap.rbegin()->first;
+    interval_set<uint64_t> &newest_overlap =
+      ctx->new_snapset.clone_overlap.rbegin()->second;
+    ctx->modified_ranges.intersection_of(newest_overlap);
+    if (is_present_clone(last_clone_oid)) {
+      // modified_ranges is still in use by the clone
+      ctx->delta_stats.num_bytes += ctx->modified_ranges.size();
+    }
+    newest_overlap.subtract(ctx->modified_ranges);
+  }
+
+  // 更新快照信息
+  if (snapc.seq > ctx->new_snapset.seq) {
+    ctx->new_snapset.seq = snapc.seq;
+    if (get_osdmap()->require_osd_release < ceph_release_t::octopus) {
+      ctx->new_snapset.snaps = snapc.snaps;
+    } else {
+      ctx->new_snapset.snaps.clear();
+    }
+  }
+  dout(20) << "make_writeable " << soid
+	   << " done, snapset=" << ctx->new_snapset << dendl;
+}
+```
+
 ##### 快照的回滚
 快照的回滚，就是把当前的head对象，回滚到某个快照对象。 具体操作如下：
 
 删除当前head对象的数据
 copy 相应的snap对象到head对象
 ```cpp
-// 源码实现：osd/ReplicatedPG.cc
-ReplicatedPG::_rollback_to
+// 源码实现：src/osd/PrimaryLogPG.cc
+int PrimaryLogPG::_rollback_to(OpContext *ctx, OSDOp& op)
+{
+  ObjectState& obs = ctx->new_obs;
+  object_info_t& oi = obs.oi;
+  const hobject_t& soid = oi.soid;
+  snapid_t snapid = (uint64_t)op.op.snap.snapid;
+  hobject_t missing_oid;
+
+  dout(10) << "_rollback_to " << soid << " snapid " << snapid << dendl;
+
+  ObjectContextRef rollback_to;
+
+  int ret = find_object_context(
+    hobject_t(soid.oid, soid.get_key(), snapid, soid.get_hash(), info.pgid.pool(),
+	      soid.get_namespace()),
+    &rollback_to, false, false, &missing_oid);
+  if (ret == -EAGAIN) {
+    /* clone must be missing */
+    ceph_assert(is_degraded_or_backfilling_object(missing_oid) || is_degraded_on_async_recovery_target(missing_oid));
+    dout(20) << "_rollback_to attempted to roll back to a missing or backfilling clone "
+	     << missing_oid << " (requested snapid: ) " << snapid << dendl;
+    block_write_on_degraded_snap(missing_oid, ctx->op);
+    return ret;
+  }
+  {
+    ObjectContextRef promote_obc;
+    cache_result_t tier_mode_result;
+    if (obs.exists && obs.oi.has_manifest()) {
+      /* 
+       * In the case of manifest object, the object_info exists on the base tier at all time,
+       * so promote_obc should be equal to rollback_to 
+       * */
+      promote_obc = rollback_to;
+      tier_mode_result =
+	maybe_handle_manifest_detail(
+	  ctx->op,
+	  true,
+	  rollback_to);
+    } else {
+      tier_mode_result =
+	maybe_handle_cache_detail(
+	  ctx->op,
+	  true,
+	  rollback_to,
+	  ret,
+	  missing_oid,
+	  true,
+	  false,
+	  &promote_obc);
+    }
+    switch (tier_mode_result) {
+    case cache_result_t::NOOP:
+      break;
+    case cache_result_t::BLOCKED_PROMOTE:
+      ceph_assert(promote_obc);
+      block_write_on_snap_rollback(soid, promote_obc, ctx->op);
+      return -EAGAIN;
+    case cache_result_t::BLOCKED_FULL:
+      block_write_on_full_cache(soid, ctx->op);
+      return -EAGAIN;
+    case cache_result_t::REPLIED_WITH_EAGAIN:
+      ceph_abort_msg("this can't happen, no rollback on replica");
+    default:
+      ceph_abort_msg("must promote was set, other values are not valid");
+      return -EAGAIN;
+    }
+  }
+
+  if (ret == -ENOENT || (rollback_to && rollback_to->obs.oi.is_whiteout())) {
+    // there's no snapshot here, or there's no object.
+    // if there's no snapshot, we delete the object; otherwise, do nothing.
+    dout(20) << "_rollback_to deleting head on " << soid.oid
+	     << " because got ENOENT|whiteout on find_object_context" << dendl;
+    if (ctx->obc->obs.oi.watchers.size()) {
+      // Cannot delete an object with watchers
+      ret = -EBUSY;
+    } else {
+      _delete_oid(ctx, false, false);
+      ret = 0;
+    }
+  } else if (ret) {
+    // ummm....huh? It *can't* return anything else at time of writing.
+    ceph_abort_msg("unexpected error code in _rollback_to");
+  } else { //we got our context, let's use it to do the rollback!
+    hobject_t& rollback_to_sobject = rollback_to->obs.oi.soid;
+    if (is_degraded_or_backfilling_object(rollback_to_sobject) ||
+	is_degraded_on_async_recovery_target(rollback_to_sobject)) {
+      dout(20) << "_rollback_to attempted to roll back to a degraded object "
+	       << rollback_to_sobject << " (requested snapid: ) " << snapid << dendl;
+      block_write_on_degraded_snap(rollback_to_sobject, ctx->op);
+      ret = -EAGAIN;
+    } else if (rollback_to->obs.oi.soid.snap == CEPH_NOSNAP) {
+      // rolling back to the head; we just need to clone it.
+      ctx->modify = true;
+    } else {
+      if (rollback_to->obs.oi.has_manifest() && rollback_to->obs.oi.manifest.is_chunked()) {
+	/*
+	 * looking at the following case, the foo head needs the reference of chunk4 and chunk5
+	 * in case snap[1] is removed.
+	 * 
+	 * Before rollback to snap[1]:
+	 *
+	 * foo snap[1]:          [chunk4]          [chunk5]
+	 * foo snap[0]: [                  chunk2                   ]
+	 * foo head   :          [chunk1]                    [chunk3]
+	 *
+	 * After:
+	 *
+	 * foo snap[1]:          [chunk4]          [chunk5]
+	 * foo snap[0]: [                  chunk2                   ]
+	 * foo head   :          [chunk4]          [chunk5] 
+	 *
+	 */
+	OpFinisher* op_finisher = nullptr;
+	auto op_finisher_it = ctx->op_finishers.find(ctx->current_osd_subop_num);
+	if (op_finisher_it != ctx->op_finishers.end()) {
+	  op_finisher = op_finisher_it->second.get();
+	}
+	if (!op_finisher) {
+	  bool need_inc_ref = inc_refcount_by_set(ctx, rollback_to->obs.oi.manifest, op);
+	  if (need_inc_ref) {
+	    ceph_assert(op_finisher_it == ctx->op_finishers.end());
+	    ctx->op_finishers[ctx->current_osd_subop_num].reset(
+		new SetManifestFinisher(op));
+	    return -EINPROGRESS;
+	  }
+	} else {
+	  op_finisher->execute();
+	  ctx->op_finishers.erase(ctx->current_osd_subop_num);
+	}
+      }
+      _do_rollback_to(ctx, rollback_to, op);
+    }
+  }
+  return ret;
+}
 ```
 ##### 快照的删除
 向monitor集群发出请求，将快照的id添加到已清除的快照的列表中。（或者将其从吃池快照集中删除）
-删除快照时，直接删除SnapSet相关的信息，并删除相应的快照对象。需要计算该快照是否被其它快照对象共享。
-ceph的删除是延迟删除，并不直接删除。当pg是clean状态并且没进行scrubbing时由由snap_trim_wq异步执行。
+删除快照时，直接删除SnapSet相关的信息，并删除相应的快照对象。其调用流程可参看快照的创建流程。
+
+ceph的删除是延迟删除，并不直接删除。当 pg 是 clean 状态并且没进行 scrubbing 时由由 snap_trimq 异步执行。
 ```cpp
-// 相关源码：
-struct SnapTrimmer : public boost::statechart::state_machine< SnapTrimmer, NotTrimming >
+// 相关源码：src/osd/PrimaryLogPG.h
+class PrimaryLogPG : public PG, public PGBackend::Listener {
+  friend class OSD;
+  friend class Watch;
+  friend class PrimaryLogScrub;
+
+  // ...
+  struct SnapTrimmer : public boost::statechart::state_machine< SnapTrimmer, NotTrimming > {
+    PrimaryLogPG *pg;
+    explicit SnapTrimmer(PrimaryLogPG *pg) : pg(pg) {}
+    void log_enter(const char *state_name);
+    void log_exit(const char *state_name, utime_t duration);
+    bool permit_trim();
+    bool can_trim() {
+      return
+	permit_trim() &&
+	!pg->get_osdmap()->test_flag(CEPH_OSDMAP_NOSNAPTRIM);
+    }
+  } snap_trimmer_machine;
+};
 ```
 ##### CephFS快照
 CephFS通过在希望快照的目录下执行mkdir创建.snap目录来创建快照。
@@ -163,4 +712,3 @@ st_r：是磁盘上的元数据，包含序列计数器，时间戳，相关的�
 克隆卷的操作必须要在快照被保护起来（无法删除）之后才能进行。在克隆卷生成之后，在librbd端开始读写时会先根据快照链构造出其父子关系，而在具体的I/O请求的时候这个父子关系会被用到。克隆出的卷在有新数据写入之前，读取数据的需求都是引用父卷和快照的数据。
 
 对于克隆卷的读写会先去找这个卷的对象，如果未找到，就去寻找其parent对象，层层往上，直到找到位置。所以一旦快照链比较长就会导致效率较低，所以Ceph的克隆卷提供了flatten功能，这个功能会将所有的数据全部拷贝一份，然后生成一个新的卷。新生成的卷会完全独立存在，不再保持原有的父子关系。但是flatten本身是一个耗时比较大的操作。
-

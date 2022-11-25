@@ -14,22 +14,25 @@ kubelet 提供了一个 Registration 的 gRPC 服务：
 service Registration {
 	rpc Register(RegisterRequest) returns (Empty) {}
 }
+
+// RegisterRequest 定义设备注册需要的参数
+type RegisterRequest struct {
+	// 设备插件的 API 版本
+	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	// 设备插件的 Unix Socket
+	Endpoint string `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	// 集群资源名称，比如 NVIDIA GPU 就被公布为 nvidia.com/gpu
+	ResourceName string `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
+	
+    // ...
+}
 ```
-设备插件可以通过此 gRPC 服务在 kubelet 进行注册。在注册期间，设备插件需要发送下面几样内容：
 
-设备插件的 Unix 套接字。
-设备插件的 API 版本。
-ResourceName 是需要公布的。这里 ResourceName 需要遵循扩展资源命名方案， 类似于 vendor-domain/resourcetype。（比如 NVIDIA GPU 就被公布为 nvidia.com/gpu。）
-成功注册后，设备插件就向 kubelet 发送它所管理的设备列表，然后 kubelet 负责将这些资源发布到 API 服务器，作为 kubelet 节点状态更新的一部分。
-
-比如，设备插件在 kubelet 中注册了 hardware-vendor.example/foo 并报告了节点上的两个运行状况良好的设备后，节点状态将更新以通告该节点已安装 2 个 "Foo" 设备并且是可用的。
-
-然后，用户可以请求设备作为 Pod 规范的一部分， 参见 Container。 请求扩展资源类似于管理请求和限制的方式， 其他资源，有以下区别：
-
-扩展资源仅可作为整数资源使用，并且不能被过量使用
-设备不能在容器之间共享
-示例
-假设 Kubernetes 集群正在运行一个设备插件，该插件在一些节点上公布的资源为 hardware-vendor.example/foo。 下面就是一个 Pod 示例，请求此资源以运行一个工作负载的示例：
+注册成功后，用户请求设备资源了，请求方法与cpu和memory的管理请求和限制的方式相似，但有以下区别：
+1. 扩展资源仅可作为整数资源使用，并且不能被过量使用
+2. 设备不能在容器之间共享
+**示例**
+假设 Kubernetes 集群正在运行一个设备插件，该插件在一些节点上公布的资源为 hardware-vendor.example/foo。下面就是一个 Pod 示例，请求此资源以运行一个工作负载的示例：
 ```shell
 apiVersion: v1
 kind: Pod
@@ -43,15 +46,13 @@ spec:
         limits:
           hardware-vendor.example/foo: 2
 ```
-这个 pod 需要两个 hardware-vendor.example/foo 设备，而且只能够调度到满足需求的节点上。如果该节点中有 2 个以上的设备可用，其余的可供其他 Pod 使用
+这个 pod 需要两个 hardware-vendor.example/foo 设备，而且只能够调度到满足需求的节点上。如果该节点中有 2 个以上的设备可用，其余的可供其他 Pod 使用。
+调度完成后，Kubelet就会在本机上创建对应的 Pod ，当Kubelet发现 Pod 申请了 hardware-vendor.example/foo 就会与本机的设备插件unix socket 通信，请求它提供支持。设备插件的常规工作流程包括以下几个步骤：
 
-## 设备插件的实现
-设备插件的常规工作流程包括以下几个步骤：
-
-##### 1. 初始化
+1. 初始化
 在这个阶段，设备插件将执行供应商特定的初始化和设置， 以确保设备处于就绪状态。
 
-插件使用主机路径 /var/lib/kubelet/device-plugins/ 下的 Unix 套接字启动一个 gRPC 服务，该服务实现以下接口：
+插件使用主机路径 /var/lib/kubelet/device-plugins/ 下的 Unix Socket启动一个 gRPC 服务，该服务实现以下接口：
 ```go
 service DevicePlugin {
     // GetDevicePluginOptions 返回与设备管理器沟通的选项。
@@ -77,15 +78,16 @@ service DevicePlugin {
     rpc PreStartContainer(PreStartContainerRequest) returns (PreStartContainerResponse) {}
 }
 ```
-说明：
-插件并非必须为 GetPreferredAllocation() 或 PreStartContainer() 提供有用的实现逻辑， 调用 GetDevicePluginOptions() 时所返回的 DevicePluginOptions 消息中应该设置这些调用是否可用。kubelet 在真正调用这些函数之前，总会调用 GetDevicePluginOptions() 来查看是否存在这些可选的函数。
+有两点需要额外说明：
+1) 插件并非必须为 GetPreferredAllocation() 或 PreStartContainer() 提供有用的实现逻辑， 调用 GetDevicePluginOptions() 时所返回的 DevicePluginOptions 消息中应该设置这些调用是否可用。
+2) kubelet 在真正调用这些函数之前，总会调用 GetDevicePluginOptions() 来查看是否存在这些可选的函数。
 
 插件通过 Unix socket 在主机路径 /var/lib/kubelet/device-plugins/kubelet.sock 处向 kubelet 注册自身。
 成功注册自身后，设备插件将以服务模式运行，在此期间，它将持续监控设备运行状况， 并在设备状态发生任何变化时向 kubelet 报告。它还负责响应 Allocate gRPC 请求。 在 Allocate 期间，设备插件可能还会做一些设备特定的准备；例如 GPU 清理或 QRNG 初始化。 如果操作成功，则设备插件将返回 AllocateResponse，其中包含用于访问被分配的设备容器运行时的配置。 kubelet 将此信息传递到容器运行时。
 处理 kubelet 重启
 设备插件应能监测到 kubelet 重启，并且向新的 kubelet 实例来重新注册自己。 在当前实现中，当 kubelet 重启的时候，新的 kubelet 实例会删除 /var/lib/kubelet/device-plugins 下所有已经存在的 Unix 套接字。 设备插件需要能够监控到它的 Unix 套接字被删除，并且当发生此类事件时重新注册自己。
 
-##### 2. 设备插件部署
+2. 设备插件部署
 你可以将你的设备插件作为节点操作系统的软件包来部署、作为 DaemonSet 来部署或者手动部署。
 
 规范目录 /var/lib/kubelet/device-plugins 是需要特权访问的， 所以设备插件必须要在被授权的安全的上下文中运行。 如果你将设备插件部署为 DaemonSet，/var/lib/kubelet/device-plugins 目录必须要在插件的 PodSpec 中声明作为 卷（Volume） 被挂载到插件中。
@@ -190,23 +192,3 @@ ContainerDevices 会向外提供各个设备所隶属的 NUMA 单元这类拓扑
 gRPC 服务通过 /var/lib/kubelet/pod-resources/kubelet.sock 的 UNIX 套接字来提供服务。 设备插件资源的监控代理程序可以部署为守护进程或者 DaemonSet。 规范的路径 /var/lib/kubelet/pod-resources 需要特权来进入， 所以监控代理程序必须要在获得授权的安全的上下文中运行。 如果设备监控代理以 DaemonSet 形式运行，必须要在插件的 PodSpec 中声明将 /var/lib/kubelet/pod-resources 目录以卷的形式被挂载到设备监控代理中。
 
 对 “PodResourcesLister 服务”的支持要求启用 KubeletPodResources 特性门控。 从 Kubernetes 1.15 开始默认启用，自从 Kubernetes 1.20 开始为 v1。
-
-设备插件与拓扑管理器的集成
-特性状态： Kubernetes v1.18 [beta]
-拓扑管理器是 Kubelet 的一个组件，它允许以拓扑对齐方式来调度资源。 为了做到这一点，设备插件 API 进行了扩展来包括一个 TopologyInfo 结构体。
-```go
-message TopologyInfo {
-    repeated NUMANode nodes = 1;
-}
-
-message NUMANode {
-    int64 ID = 1;
-}
-```
-设备插件希望拓扑管理器可以将填充的 TopologyInfo 结构体作为设备注册的一部分以及设备 ID 和设备的运行状况发送回去。然后设备管理器将使用此信息来咨询拓扑管理器并做出资源分配决策。
-
-TopologyInfo 支持将 nodes 字段设置为 nil 或一个 NUMA 节点的列表。 这样就可以使设备插件通告跨越多个 NUMA 节点的设备。
-
-将 TopologyInfo 设置为 nil 或为给定设备提供一个空的 NUMA 节点列表表示设备插件没有该设备的 NUMA 亲和偏好。
-
-下面是一个由设备插件为设备填充 TopologyInfo 结构体的示例：

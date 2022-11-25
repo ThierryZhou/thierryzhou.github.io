@@ -161,20 +161,18 @@ $ go install -race mypkg // 安装程序
 要想解决数据竞争的问题可以使用互斥锁sync.Mutex,解决数据竞争(Data race),也可以使用管道解决,使用管道的效率要比互斥锁高.
 
 ##### 6. chan的实现原理
-go的多线程实现采用CSP模型。各个线程独立顺序执行，两个goroutine间表面上没有耦合，而是采用channel作为其通信的媒介，达到线程间同步的目的。 channel 是一个用于同步和通信的有锁FIFO队列。
-  写 channel 现象：  
+go的多线程实现采用CSP模型。各个线程独立顺序执行，两个goroutine间表面上没有耦合，而是采用channel作为其通信的媒介，达到线程间同步的目的。 channel 是一个用于同步和通信的有锁FIFO队列。  
+**写 channel 现象：**  
 向nil channel写，会导致阻塞。  
 向关闭的channel写，会导致panic。  
 如果另一个goroutine在等待读，则通信内容直接发送给另一个goroutine，自己不阻塞。  
 上一种现象中如果有多个goroutine都在等待读，则发给第一个等待的，FIFO顺序。  
 如果没有另一个goroutine在等待读，如果缓存队列没满，那么将通信内容放入队列，自己不阻塞。  
 如果没有另一个goroutine在等待读，如果缓存队列满了，那么自己将阻塞，直到被其他go读取。  
-  读 channel 现象：  
+**读 channel 现象：**  
 从nil channel读，会导致阻塞。  
 从关闭的channel读，如果缓冲区有，则取出；没有则会读出0值，不阻塞。  
 如果存在缓冲区，则优先向缓冲区写，其次阻塞写的goroutine。因此，读channel的优先级是先从缓存队列读，再从被阻塞的写channel的goroutine读；
-上面现象可以细分几种情况。如下表
-
 
 ##### 7. syn.Map的实现原理
 ```go

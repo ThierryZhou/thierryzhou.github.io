@@ -36,10 +36,10 @@ Kubernetes 的 IP 地址存在于 Pod 范围内 —— 容器共享它们的网�
 
 Kubernetes 网络解决四方面的问题：
 
-一个 Pod 中的容器之间通过本地回路（loopback）通信。
-集群网络在不同 Pod 之间提供通信。
-Service 资源允许你 向外暴露 Pod 中运行的应用， 以支持来自于集群外部的访问。
-Ingress 提供专门用于暴露 HTTP 应用程序、网站和 API 的额外功能。
+1. 一个 Pod 中的容器之间通过本地回路（loopback）通信。
+2. 集群网络在不同 Pod 之间提供通信。
+3. Service 资源允许你 向外暴露 Pod 中运行的应用， 以支持来自于集群外部的访问。
+4. Ingress 提供专门用于暴露 HTTP 应用程序、网站和 API 的额外功能。
 你也可以使用 Service 来发布仅供集群内部使用的服务。
 集群网络解释了如何为集群设置网络， 还概述了所涉及的技术。
 
@@ -100,6 +100,33 @@ Kube-proxy是一个简单的网络代理和负载均衡器，它的作用主要�
 
 Kube-dns用来为kubernetes service分配子域名，在集群中可以通过名称访问service；通常kube-dns会为service赋予一个名为“service名称.namespace.svc.cluster.local”的A记录，用来解析service的clusterip。
 
-## Fannel
+## Kubernetes 网络插件
 
-## Caclico
+Kubernetes 1.25 支持用于集群联网的容器网络接口 (CNI) 插件。 你必须使用和你的集群相兼容并且满足你的需求的 CNI 插件。 在更广泛的 Kubernetes 生态系统中你可以使用不同的插件（开源和闭源）。
+
+要实现 Kubernetes 网络模型，你必须在集群中部署一套 CNI 插件系统。下面分析一下两个常见的 CNI 插件：Fannel 和 Calico
+
+### Flannel 简介
+
+Flannel是一种基于overlay网络的跨主机容器网络解决方案，也就是将TCP数据包封装在另一种网络包里面进行路由转发和通信。
+
+Flannel配合etcd可以实现不同宿主机上的docker容器内网IP的互通。
+
+Flannel是CoreOS开发,专门用于docker多机互联的一个工具,让集群中的不同节点主机创建的容器都具有全集群唯一的虚拟ip地址。
+
+Flannel使用go语言编写。
+
+#### 实现原理
+
+Flannel为每个host分配一个subnet，容器从这个subnet中分配IP，这些IP可以在host间路由，容器间无需使用nat和端口映射即可实现跨主机通信
+
+每个subnet都是从一个更大的IP池中划分的，flannel会在每个主机上运行一个叫flanneld的agent，其职责就是从池子中分配subnet
+
+Flannel使用etcd存放网络配置、已分配 的subnet、host的IP等信息
+
+Flannel数据包在主机间转发是由backend实现的，目前已经支持UDP、VxLAN、host-gw、AWS VPC和GCE路由等多种backend
+
+
+
+
+### Caclico 简介
