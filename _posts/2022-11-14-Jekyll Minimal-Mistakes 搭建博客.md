@@ -111,7 +111,11 @@ defaults:
 +     authr_profile: true
 +     share false
 +     related: true
-
 ```
+
+## 百度统计
+
+
+
 ## 更多技术分享浏览我的博客：  
 https://thierryzhou.github.io
