@@ -1,10 +1,10 @@
 ---
 title: "Kubernetes 网络模型"
 tag: kubernetes
-excerpt: 在 Kubernetes 中，调度 (scheduling) 指的是确保 Pod 匹配到合适的节点， 以便 kubelet 能够运行它们。 调度的工作由调度器和控制器协调完成。
+excerpt: 集群网络系统是 Kubernetes 的核心部分，但是想要准确了解它的工作原理可是个不小的挑战。
 ---
 
-集群网络系统是 Kubernetes 的核心部分，但是想要准确了解它的工作原理可是个不小的挑战。 下面列出的是网络系统的的四个主要问题：
+集群网络系统是 Kubernetes 的核心部分，但是想要准确了解它的工作原理可是个不小的挑战。下面列出的是网络系统的的四个主要问题：
 
 1. 高度耦合的容器间通信：这个已经被 Pod 和 localhost 通信解决了。
 2. Pod 间通信：这是本文档讲述的重点。
