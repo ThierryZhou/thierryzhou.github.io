@@ -39,12 +39,12 @@ POSTOUTING链 ：用于源地址转换（SNAT）。
 
 规则链之间的先后顺序是 RREROUTING -> INPUT —> FORWARD -> OUTPUT -> POSTROUTING
 
-![架构](  /assets/images/posts/iptables-lists.png)
+![架构](/assets/images/posts/iptables-lists.png)
 
 #### 规则表
 按照业务规则分别是filter表负责进行数据包过滤，nat负责进行地址转换操作，raw表负责异常处理，mangle表负责数据处理。他们之前的先后顺序是raw -> mangle -> nat -> filter。
 
-![架构](  /assets/images/posts/iptables-tables.png)
+![架构](/assets/images/posts/iptables-tables.png)
 
 1. filter表  
 filter表是默认的表，如果不指明表则使用此表。其通常用于过滤数据包。其中的内建链包括：  
@@ -68,7 +68,7 @@ raw表用于处理异常，有如下两个内建链：
 PREROUTING  
 OUTPUT  
 
-![架构](  /assets/images/posts/iptables-packages.png)
+![架构](/assets/images/posts/iptables-packages.png)
 
 iptables传输数据包的过程：  
 1. 当一个数据包进入网卡时，它首先进入PREROUTING链，内核根据数据包目的IP判断是否需要转送出去。  

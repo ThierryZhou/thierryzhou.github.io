@@ -1,8 +1,11 @@
 ---
 title: Ceph快照详解
+tag: ceph
+excerpt: Ceph的快照与其他系统的快照一样，是基于COW(copy-on-write)实现的。其实现由RADOS支持，基于OSD服务端——每次做完快照后再对卷进行写入时就会触发COW操作，即先拷贝出原数据对象的数据出来生成快照对象，然后对原数据对象进行写入。
 ---
 
 ## 简介
+
 Ceph快照功能基于RADOS实现，但是从使用方法上分成三种情况：
 
 1. Pool Snapshot 对整个Pool打快照，该Pool中所有的对象都会受影响。
@@ -44,17 +47,17 @@ rmdir .snap/snap1
 
 ### 快照的实现
 #### 快照的相关概念
-pool： 每个池都是逻辑上的隔离单位，不同的pool可以有不同的数据处理方式，包括：ReplicasSet，Placement Groups，CRUSH。 (Rules，Snapshot，ownership都是通过池隔离。)
+pool ：每个池都是逻辑上的隔离单位，不同的 pool 可以有不同的数据处理方式，包括: ReplicasSet,Placement Groups,CRUSH。 (Rules/Snapshot/ownership 都是通过池隔离。)
 
-head对象：卷原始对象，包含了SnapSet（详见关键数据结构部分）。
+head 对象：卷原始对象，包含了 SnapSet（详见关键数据结构部分）。
 
-snap对象：卷打快照后通过cow拷贝出来的对象，该对象为只读。
+snap 对象：卷打快照后通过 cow 拷贝出来的对象，该对象为只读。
 
 snap_seq: 快照的序列号（详见关键数据结构部分）。
 
-snapdir对象： head对象被删除后，仍然有snap和clone对象，系统自动创建一个snapdir对象来保存snapset的信息。（详见关键数据结构部分）。
+snapdir 对象： head 对象被删除后，仍然有 snap 和 clone 对象，系统自动创建一个 snapdir 对象来保存 snapset 的信息。（详见关键数据结构部分）。
 
-rbd_header对象： 在rados中，对象里没有数据，卷的元数据都是作为这个对象的属性以omap方式记录到leveldb里。
+rbd_header 对象： 在 rados 中，对象里没有数据，卷的元数据都是作为这个对象的属性以 omap 方式记录到 leveldb 里。
 
 #### 快照的代码实现
 使用 librados api 创建快照，其代码如下：
@@ -156,18 +159,21 @@ struct librados::IoCtxImpl {
 在IoCtxImpl里的snap_seq也被称为快照的id，当打开一个image时，如果打开的是一个卷的快照，则该值为快照对应的序号，否则该值为CEPH_NOSNAP表示操作的不是卷的快照，是卷自身。
 ```cpp
 // src/librados/IoCtx.cc
+// 创建快照
 int librados::IoCtx::snap_create(const char *snapname)
 {
   return io_ctx_impl->snap_create(snapname);
 }
 
-
+// 快照回滚
 int librados::IoCtx::snap_rollback(const std::string& oid, const char *snapname)
 {
   return io_ctx_impl->rollback(oid, snapname);
 }
 
+/////////////////////////////////////////////////////////
 // src/librados/librados_cxx.cc
+// 创建快照
 int librados::IoCtxImpl::snap_create(const char *snapName)
 {
   int reply;
@@ -184,6 +190,7 @@ int librados::IoCtxImpl::snap_create(const char *snapName)
   return reply;
 }
 
+// 快照回滚
 int librados::IoCtxImpl::selfmanaged_snap_rollback_object(const object_t& oid,
 							  ::SnapContext& snapc,
 							  uint64_t snapid)
@@ -322,7 +329,7 @@ void pg_pool_t::add_snap(const char *n, utime_t stamp)
 }
 ```
 
-前文提到过快照通过 COW 方式实现，在没有发生变化是通过集群我们只能观测到 snapid 的变化，快照和原数据是同一份数据，只有当发生了数据写时，Ceph 才会为快照生成相应的数据。写请求从客户端到Ceph 服务的流程如下所示：
+前文提到过快照通过 COW 方式实现，在没有发生变化是通过集群我们只能观测到 snapid 的变化，快照和原数据是同一份数据，只有当发生了数据写时，Ceph 才会为快照生成相应的数据。写请求从客户端到 Ceph 服务的流程如下所示：
 
 ![osd-dispatch](/assets/images/ceph/ceph-osd-dispatch.png)
 
@@ -392,9 +399,9 @@ struct SnapSet {
   void filter(const pg_pool_t &pinfo);
 };
 ```
-SnapContext 在客户端中保存 snap 相关的信息，是当前为对象定义的快照合集。PrimaryLogPG 透过 SnapContext 跟踪对象的全部的快照集合，当前存在的全部克隆，克隆的大小。PrimaryLogPG 通过 new_snap 和 snapc 的比较感知到快照已经过期；另外SnapContext 的 clone_overlap 保存本次clone对象和上次clone对象的重叠（overlap）部分，clone 操作之后，每次的写操作都要维护这个信息。这个信息用于在数据恢复阶段对象恢复的优化。
+SnapContext 在客户端中保存 snap 相关的信息，是当前为对象定义的快照合集。 PrimaryLogPG 透过 SnapContext 跟踪对象的全部的快照集合，当前存在的全部克隆，克隆的大小。 PrimaryLogPG 通过 new_snap 和 snapc 的比较感知到快照已经过期；另外 SnapContext 的 clone_overlap 保存本次 clone 对象和上次 clone 对象的重叠（overlap）部分，clone 操作之后，每次的写操作都要维护这个信息。这个信息用于在数据恢复阶段对象恢复的优化。
 
-make_writeable 中封装了一部分逻辑处理的功能，更详细的功能感兴趣的同学可以自己的看一下把真个流程梳理出来，篇幅有限这里就不再展开更多的源码内容。
+make_writeable 中封装了一部分逻辑处理的功能，更详细的功能感兴趣的同学可以自己的看一下把整个流程梳理出来，篇幅有限这里就不再展开更多的源码内容。
 ```cpp
 void PrimaryLogPG::make_writeable(OpContext *ctx)
 {
@@ -527,8 +534,21 @@ void PrimaryLogPG::make_writeable(OpContext *ctx)
 ##### 快照的回滚
 快照的回滚，就是把当前的head对象，回滚到某个快照对象。 具体操作如下：
 
-删除当前head对象的数据
-copy 相应的snap对象到head对象
+1. 删除当前 head 对象的数据
+2. 拷贝相应的 snap 对象到 head 对象
+
+假如有 foo 对象的快照结构如下所示，它想要回退到 snap[1] 的版本。
+```shell
+回滚前:
+foo snap[1]:          [chunk4]          [chunk5]
+foo snap[0]: [                  chunk2                   ]
+foo head   :          [chunk1]                    [chunk3]
+回滚后:
+foo snap[1]:          [chunk4]          [chunk5]
+foo snap[0]: [                  chunk2                   ]
+foo head   :          [chunk4]          [chunk5] 
+```
+
 ```cpp
 // 源码实现：src/osd/PrimaryLogPG.cc
 int PrimaryLogPG::_rollback_to(OpContext *ctx, OSDOp& op)
@@ -627,23 +647,7 @@ int PrimaryLogPG::_rollback_to(OpContext *ctx, OSDOp& op)
       ctx->modify = true;
     } else {
       if (rollback_to->obs.oi.has_manifest() && rollback_to->obs.oi.manifest.is_chunked()) {
-	/*
-	 * looking at the following case, the foo head needs the reference of chunk4 and chunk5
-	 * in case snap[1] is removed.
-	 * 
-	 * Before rollback to snap[1]:
-	 *
-	 * foo snap[1]:          [chunk4]          [chunk5]
-	 * foo snap[0]: [                  chunk2                   ]
-	 * foo head   :          [chunk1]                    [chunk3]
-	 *
-	 * After:
-	 *
-	 * foo snap[1]:          [chunk4]          [chunk5]
-	 * foo snap[0]: [                  chunk2                   ]
-	 * foo head   :          [chunk4]          [chunk5] 
-	 *
-	 */
+
 	OpFinisher* op_finisher = nullptr;
 	auto op_finisher_it = ctx->op_finishers.find(ctx->current_osd_subop_num);
 	if (op_finisher_it != ctx->op_finishers.end()) {
@@ -669,8 +673,7 @@ int PrimaryLogPG::_rollback_to(OpContext *ctx, OSDOp& op)
 }
 ```
 ##### 快照的删除
-向monitor集群发出请求，将快照的id添加到已清除的快照的列表中。（或者将其从吃池快照集中删除）
-删除快照时，直接删除SnapSet相关的信息，并删除相应的快照对象。其调用流程可参看快照的创建流程。
+向 monitor 集群发出请求，将快照的 id 添加到已清除的快照的列表中。删除快照时，直接删除SnapSet相关的信息，并删除相应的快照对象。其调用流程可参看快照的创建流程。
 
 ceph的删除是延迟删除，并不直接删除。当 pg 是 clean 状态并且没进行 scrubbing 时由由 snap_trimq 异步执行。
 ```cpp
@@ -696,19 +699,171 @@ class PrimaryLogPG : public PG, public PGBackend::Listener {
 };
 ```
 ##### CephFS快照
-CephFS通过在希望快照的目录下执行mkdir创建.snap目录来创建快照。
 
-无论在任何时候创建快照，都会生成一个SnapRealm，它保留较少的数据，用于将SnapContex与每个打开的文件关联以进行写入。
+CephFS 通过在希望快照的目录下执行 mkdir 创建 .snap 目录来创建快照。这时 fs 客户端会生成一个 SnapRealm，它保留较少的数据，用于将 SnapContex 与每个打开的文件关联以进行写入。 SnapRealm 中包含 srnode(磁盘上的元数据，包含序列计数器，时间戳，相关的快照 id 列表和 past_parents) , past_parents , past_children , inodes_with_caps 等属于快照的一部分的信息。
+```c
+// 代码路径： https://github.com/ceph/ceph-client/fs/ceph/dir.c
+static int ceph_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
+		      struct dentry *dentry, umode_t mode)
+{
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(dir->i_sb);
+	struct ceph_mds_request *req;
+	struct ceph_acl_sec_ctx as_ctx = {};
+	int err;
+	int op;
 
-SnapRealm中包含sr_t srnode，past_parents ，past_children，inodes_with_caps等属于快照的一部分的信息。
+	err = ceph_wait_on_conflict_unlink(dentry);
+	if (err)
+		return err;
 
-st_r：是磁盘上的元数据，包含序列计数器，时间戳，相关的快照id列表和past_parents。
+	// 目录格式为 .snap/foo 则进入快照处理逻辑
+	if (ceph_snap(dir) == CEPH_SNAPDIR) {
+		/* mkdir .snap/foo is a MKSNAP */
+		op = CEPH_MDS_OP_MKSNAP;
+		dout("mksnap dir %p snap '%pd' dn %p\n", dir,
+		     dentry, dentry);
+	} else if (ceph_snap(dir) == CEPH_NOSNAP) {
+		dout("mkdir dir %p dn %p mode 0%ho\n", dir, dentry, mode);
+		op = CEPH_MDS_OP_MKDIR;
+	} else {
+		err = -EROFS;
+		goto out;
+	}
 
-当执行快照操作的时候，客户端会将请求发送到MDS服务器，然后在服务器的Server::handle_client_mksnap()中处理，它会从SnapServer中非配一个snapid，同时利用新的SnapRealm创建一个新的inode，然后将其提交到MDlog，提交后会触发MDCache::do_realm_invalidate_and_update_notify()，快照的大部分工作由这部分完成。快照的元数据会作为目录信息的一部分被存储在OSD端。
+	if (op == CEPH_MDS_OP_MKDIR &&
+	    ceph_quota_is_max_files_exceeded(dir)) {
+		err = -EDQUOT;
+		goto out;
+	}
 
-需要注意的是CephFS的快照和多个文件系统的交互是存在问题的——每个MDS集群独立分配snappid，如果多个文件系统共享一个池，快照会冲突。如果此时有客户删除一个快照，将会导致其他人丢失数据，并且这种情况不会抛出异常，这也是CephFS的快照不推荐使用的原因。
+	mode |= S_IFDIR;
+	err = ceph_pre_init_acls(dir, &mode, &as_ctx);
+	if (err < 0)
+		goto out;
+	err = ceph_security_init_secctx(dentry, mode, &as_ctx);
+	if (err < 0)
+		goto out;
+
+	req = ceph_mdsc_create_request(mdsc, op, USE_AUTH_MDS);
+	if (IS_ERR(req)) {
+		err = PTR_ERR(req);
+		goto out;
+	}
+
+	req->r_dentry = dget(dentry);
+	req->r_num_caps = 2;
+	req->r_parent = dir;
+	ihold(dir);
+	set_bit(CEPH_MDS_R_PARENT_LOCKED, &req->r_req_flags);
+	req->r_args.mkdir.mode = cpu_to_le32(mode);
+	req->r_dentry_drop = CEPH_CAP_FILE_SHARED | CEPH_CAP_AUTH_EXCL;
+	req->r_dentry_unless = CEPH_CAP_FILE_EXCL;
+	if (as_ctx.pagelist) {
+		req->r_pagelist = as_ctx.pagelist;
+		as_ctx.pagelist = NULL;
+	}
+	err = ceph_mdsc_do_request(mdsc, dir, req);
+	if (!err &&
+	    !req->r_reply_info.head->is_target &&
+	    !req->r_reply_info.head->is_dentry)
+		err = ceph_handle_notrace_create(dir, dentry);
+	ceph_mdsc_put_request(req);
+out:
+	if (!err)
+		ceph_init_inode_acls(d_inode(dentry), &as_ctx);
+	else
+		d_drop(dentry);
+	ceph_release_acl_sec_ctx(&as_ctx);
+	return err;
+}
+```
+
+当执行快照操作的时候，客户端会将请求发送到 MDS 服务器，然后在服务器的 Server::handle_client_mksnap() 中处理，它会从 SnapServer 中非配一个 snapid ，同时利用新的 SnapRealm 创建一个新的 inode ，然后将其提交到 MDlog ，提交后会触发 MDCache::do_realm_invalidate_and_update_notify() ，快照的大部分工作由这部分完成。快照的元数据会作为目录信息的一部分被存储在 OSD 端。
+
+```cpp
+代码路径：https://github.com/ceph/ceph
+
+void Server::handle_client_mksnap(MDRequestRef& mdr)
+{
+  // ...
+
+  // 服务端会通过 snapclient 与 snapserver 进行通信
+
+  // 创建 snapid
+  if (!mdr->more()->stid) {
+    mds->snapclient->prepare_create(diri->ino(), snapname,
+				    mdr->get_mds_stamp(),
+				    &mdr->more()->stid, &mdr->more()->snapidbl,
+				    new C_MDS_RetryRequest(mdcache, mdr));
+    return;
+  }
+
+  version_t stid = mdr->more()->stid;
+  snapid_t snapid;
+  auto p = mdr->more()->snapidbl.cbegin();
+  decode(snapid, p);
+  dout(10) << " stid " << stid << " snapid " << snapid << dendl;
+
+  ceph_assert(mds->snapclient->get_cached_version() >= stid);
+
+  SnapPayload payload;
+  if (req->get_data().length()) {
+    try {
+      auto iter = req->get_data().cbegin();
+      decode(payload, iter);
+    } catch (const ceph::buffer::error &e) {
+      // backward compat -- client sends xattr bufferlist. however,
+      // that is not used anywhere -- so (log and) ignore.
+      dout(20) << ": no metadata in payload (old client?)" << dendl;
+    }
+  }
+
+  // 日志
+  SnapInfo info;
+  info.ino = diri->ino();
+  info.snapid = snapid;
+  info.name = snapname;
+  info.stamp = mdr->get_op_stamp();
+  info.metadata = payload.metadata;
+
+  auto pi = diri->project_inode(mdr, false, true);
+  pi.inode->ctime = info.stamp;
+  if (info.stamp > pi.inode->rstat.rctime)
+    pi.inode->rstat.rctime = info.stamp;
+  pi.inode->rstat.rsnaps++;
+  pi.inode->version = diri->pre_dirty();
+
+  auto &newsnap = *pi.snapnode;
+  newsnap.created = snapid;
+  auto em = newsnap.snaps.emplace(std::piecewise_construct, std::forward_as_tuple(snapid), std::forward_as_tuple(info));
+  if (!em.second)
+    em.first->second = info;
+  newsnap.seq = snapid;
+  newsnap.last_created = snapid;
+
+  // 日志记录 inode 的变化
+  mdr->ls = mdlog->get_current_segment();
+  EUpdate *le = new EUpdate(mdlog, "mksnap");
+  mdlog->start_entry(le);
+
+  le->metablob.add_client_req(req->get_reqid(), req->get_oldest_client_tid());
+  le->metablob.add_table_transaction(TABLE_SNAP, stid);
+  mdcache->predirty_journal_parents(mdr, &le->metablob, diri, 0, PREDIRTY_PRIMARY, false);
+  mdcache->journal_dirty_inode(mdr.get(), &le->metablob, diri);
+
+  // 日志记录 snaprealm 的变化
+  submit_mdlog_entry(le, new C_MDS_mksnap_finish(this, mdr, diri, info),
+                     mdr, __func__);
+  mdlog->flush();
+}
+```
+
+需要注意的是 CephFS 的快照和多个文件系统的交互是存在问题的——每个 MDS 集群独立分配 snappid，如果多个文件系统共享一个池，快照会冲突。如果此时有客户删除一个快照，将会导致其他人丢失数据，并且这种情况不会抛出异常，这也是 CephFS 的快照不推荐使用的原因。
 
 ##### 克隆卷
-克隆卷的操作必须要在快照被保护起来（无法删除）之后才能进行。在克隆卷生成之后，在librbd端开始读写时会先根据快照链构造出其父子关系，而在具体的I/O请求的时候这个父子关系会被用到。克隆出的卷在有新数据写入之前，读取数据的需求都是引用父卷和快照的数据。
+克隆卷的操作必须要在快照被保护起来（无法删除）之后才能进行。在克隆卷生成之后，在 librbd 端开始读写时会先根据快照链构造出其父子关系，而在具体的 I/O 请求的时候这个父子关系会被用到。克隆出的卷在有新数据写入之前，读取数据的需求都是引用父卷和快照的数据。
 
-对于克隆卷的读写会先去找这个卷的对象，如果未找到，就去寻找其parent对象，层层往上，直到找到位置。所以一旦快照链比较长就会导致效率较低，所以Ceph的克隆卷提供了flatten功能，这个功能会将所有的数据全部拷贝一份，然后生成一个新的卷。新生成的卷会完全独立存在，不再保持原有的父子关系。但是flatten本身是一个耗时比较大的操作。
+对于克隆卷的读写会先去找这个卷的对象，如果未找到，就去寻找其 parent 对象，层层往上，直到找到位置。所以一旦快照链比较长就会导致效率较低，所以 Ceph 的克隆卷提供了 flatten 功能，这个功能会将所有的数据全部拷贝一份，然后生成一个新的卷。新生成的卷会完全独立存在，不再保持原有的父子关系。但是 flatten 本身是一个耗时比较大的操作。
+
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io

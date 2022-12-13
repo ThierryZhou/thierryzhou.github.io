@@ -92,7 +92,8 @@ $ cat /etc/cni/net.d/10-flannel.conflist
 }
 ```
 改用containerd作为容器运行时后，搜索和加载 cni 网络插件的任务由 containerd 接管。其工作流程如下。
-![containerd-cni](/assets/images/posts/containered-cni.png)
+
+![containerd-cni](/assets/images/kubernetes/containered-cni.png)
 
 这里 containerd 中所描述的 pod 与 kubernetes 中的 pod 是相同概念，而 Sandbox Contaienr 也一般我们也成为Infrastructure Container，在 kubernetes 中，它还有一个大家很熟悉的名字 pause 容器。
 
@@ -117,49 +118,43 @@ func main() {
 	ifPrefixName := "eth"
 	defaultIfName := "eth0"
 
-	// Initializes library
+	// cni 初始化
 	l, err := gocni.New(
-		// one for loopback network interface
 		gocni.WithMinNetworkCount(2),
 		gocni.WithPluginConfDir("/etc/cni/net.d"),
 		gocni.WithPluginDir([]string{"/opt/cni/bin"}),
-		// Sets the prefix for network interfaces, eth by default
 		gocni.WithInterfacePrefix(ifPrefixName))
 	if err != nil {
 		log.Fatalf("failed to initialize cni library: %v", err)
 	}
 
-	// Load the cni configuration
+	// 加载配置
 	if err := l.Load(gocni.WithLoNetwork, gocni.WithDefaultConf); err != nil {
 		log.Fatalf("failed to load cni configuration: %v", err)
 	}
 
-	// Setup network for namespace.
 	labels := map[string]string{
 		"K8S_POD_NAMESPACE":          "namespace1",
 		"K8S_POD_NAME":               "pod1",
 		"K8S_POD_INFRA_CONTAINER_ID": id,
-		// Plugin tolerates all Args embedded by unknown labels, like
-		// K8S_POD_NAMESPACE/NAME/INFRA_CONTAINER_ID...
 		"IgnoreUnknown": "1",
 	}
 
 	ctx := context.Background()
 
-	// Teardown network
+	// 关闭网络
 	defer func() {
 		if err := l.Remove(ctx, id, netns, gocni.WithLabels(labels)); err != nil {
 			log.Fatalf("failed to teardown network: %v", err)
 		}
 	}()
 
-	// Setup network
+	// 设置网络
 	result, err := l.Setup(ctx, id, netns, gocni.WithLabels(labels))
 	if err != nil {
 		log.Fatalf("failed to setup network for namespace: %v", err)
 	}
 
-	// Get IP of the default interface
 	IP := result.Interfaces[defaultIfName].IPConfigs[0].IP.String()
 	fmt.Printf("IP of the default interface %s:%s", defaultIfName, IP)
 }
@@ -240,10 +235,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 
 	if podNetwork {
 		netStart := time.Now()
-		// If it is not in host network namespace then create a namespace and set the sandbox
-		// handle. NetNSPath in sandbox metadata and NetNS is non empty only for non host network
-		// namespaces. If the pod is in host network namespace then both are empty and should not
-		// be used.
+        // Pod 需要不在 host网络空间下时，才会由 cni 为 Pod 分配 IP
 		var netnsMountDir = "/var/run/netns"
 		if c.config.NetNSMountsUnderStateDir {
 			netnsMountDir = filepath.Join(c.config.StateDir, "netns")
@@ -312,3 +304,6 @@ func (c *criService) setupPodNetwork(ctx context.Context, sandbox *sandboxstore.
 	return fmt.Errorf("failed to find network info for sandbox %q", id)
 }
 ```
+
+## 更多技术分享浏览我的博客：
+https://thierryzhou.github.io

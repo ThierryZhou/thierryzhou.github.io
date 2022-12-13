@@ -1,5 +1,6 @@
 ---
 title: Golang 内存管理
+tag: Go
 ---
 
 Go语言的内存分配器采用了跟 tcmalloc 库相同的多级缓存分配模型，该模型将引入了线程缓存（Thread Cache）、中心缓存（Central Cache）和页堆（Page Heap）三个组件分级管理内存。

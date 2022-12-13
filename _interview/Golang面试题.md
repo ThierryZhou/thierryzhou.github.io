@@ -1,6 +1,6 @@
 ---
 title:  "Golang面试题"
-excerpt: 汇总Golang面试相关内容
+excerpt: 汇总所有常见的Golang面试问题内容，包含部分源码
 tag:    interview
 ---
 ### 内存管理
@@ -53,26 +53,66 @@ golang中的内存申请流程如下图所示。
 
 大约有 100 种内存块类别，每一个类别都有自己对象的空闲链表。小于 32KB 的内存分配被向上取整到对应的尺寸类别，从相应的空闲链表中分配。一页内存只可以被分裂成同一种尺寸类别的对象，然后由空间链表分配管理器。
 
-##### 3. 切片和字符串
+
+## 结构体和接口
+##### 1. 切片和字符串
+
+切片的定义如下：
 ```go
 type Slice struct {
     Data uintptr
     Len  int
     Cap  int
 }
+```
+切片可以理解为一个动态数组，切片容量不足时，继续向切片中添加元素，会触发切片的扩容。扩容规则如下：
 
+
+字符串的定义如下：
+```go
 type String struct {
     Data uintptr
     Len  int
 }
 ```
+字符串长度是固定的，通过加法运算符处理字符串时，golang 会为你开辟一个新的存储空间，将原来的字符串和新插入的字符串一起拷入新内存中。可以使用 StringBuilder 包来非 COW 修改。
 
-##### 4. golang 支持继承吗？
+##### 2. golang 支持继承吗？
 
 golang 没有继承，通过结构嵌套和嵌入来完成类似的功能。
 
+##### 3. golang 空接口如何使用？
+
+空接口是接口类型的特殊形式，空接口没有任何方法，因此任何类型都无须实现空接口，空接口类型可以保存任何值，也可以从空接口中取出原值。由于以上特性，golang早期版本中被用来实现泛型。
+
+##### 4. golang 指针接收器与值接收器有什么区别？
+
+**指针接收器**
+
+需要性能的优化：如果struct非常多字段，占用内存大，则使用指针接收器，因为值接收器的副本复制成本太大，导致性能低下。
+
+需要改动接收器本身时：若需要在方法里修改接收器的状态或字段值时，使用指针接收器。
+
+**值接收器**
+
+需要并发安全：值接收器因为是副本，因此是并发安全的。
+
+无需修改：因为值接收器只是本体的一个副本，对其任何的改动都只是作用在副本上。
+
+##### 7. golang reflect机制
+
+Go语言中的反射是由 reflect 包提供支持的，它定义了两个重要的类型 Type 和 Value 任意接口值在反射中都可以理解为由 reflect.Type 和 reflect.Value 两部分组成，并且 reflect 包提供了 reflect.TypeOf 和 reflect.ValueOf 两个函数来获取任意对象的 Value 和 Type。
+
+在Go语言程序中，使用 reflect.TypeOf() 函数可以获得任意值的类型对象（reflect.Type），程序通过类型对象可以访问任意值的类型信息。
+
+##### 8. golang interface是如何实现的？
+
+
+
+
 ## 垃圾回收(GC)
 ##### 1. 如果 goroutine 一直占用资源怎么办，GMP模型怎么解决这个问题
+
 如果有一个goroutine一直占用资源的话，GMP模型会从正常模式转为饥饿模式，通过信号协作强制处理在最前的 goroutine 去分配使用
 
 ##### 2. 如果若干个线程发生OOM，会发生什么？Goroutine中内存泄漏的发现与排查？项目出现过OOM吗，怎么解决?
@@ -345,7 +385,6 @@ race 竞争检测
 go build - race
 升值加薪不会到20次的
 
-
 ## 网络
 ##### 1. Linux 下 epoll 多路复用技术？
 ```c
@@ -440,8 +479,22 @@ func findRunnable() (gp *g, inheritTime, tryWakeP bool) {
 }
 ```
 
-## 其他
-##### 1. Go:反射之用字符串函数名调用函数
+## 动态类型
+##### 1. Golang 如何实现反射的？
+
+Golang反射是通过接口来实现的，通过隐式转换，普通的类型被转换成interface类型，这个过程涉及到类型转换的过程，首先从Golang类型转为interface类型, 再从interface类型转换成反射类型, 再从反射类型得到想的类型和值的信息.
+
+在Golang obj转成interface这个过程中, 分2种类型：包含方法的interface, 由runtime.iface实现；不包含方法的interface, 由runtime.eface实现。
+
+这2个类型都是包含2个指针, 一个是类型指针, 一个是数据指针, 这2个指针是完成反射的基础.
+
+实质上, 通过上述转换后得到的2种interface, 已经可以实现反射的能力了. 但作为语言本身, 标准库将这个工作封装好了, 就是 reflect.Type与reflect.Value , 方便我们使用反射.
+
+reflect. TypeOf 和 reflect.ValueOf 是一个转换器, 完成反射的的最终转换, 得到 reflect.Type, reflect.Value 对象, 得到这2个对象后, 就可以完成反射的准备工作了, 通过 reflect.Type, reflect.Value 这对类型, 可以实现反射的能力.
+
+
+
+##### 2. 反射之用字符串函数名调用函数
 ```go
 package main
 
@@ -463,6 +516,8 @@ func main() {
     f.Call([]reflect.Value{})
 }
 ```
+
+## 其他
 
 ##### 2. 你知道 Go 条件编译吗？
 
@@ -521,8 +576,6 @@ GOOS=windows GOARCH=amd64 go build main.go
 ```shell
 go tool dist list
 ```
-
-
 
 ## 更多技术分享浏览我的博客：  
 https://thierryzhou.github.io
