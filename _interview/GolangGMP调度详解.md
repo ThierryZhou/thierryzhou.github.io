@@ -13,3 +13,6 @@ P (Processor): 逻辑处理器,即为G和M的调度对象，用来调度G和M之
 当正在运行的G0阻塞的时候（可以需要IO），会再创建一个线程（M1），P转到新的线程中去运行。
 
 当M0返回时，它会尝试从其他线程中“偷”一个上下文过来，如果没有偷到，会把Goroutine放到Global runqueue中去，然后把自己放入线程缓存中。 上下文会定时检查Global runqueue。
+
+## 更多技术分享浏览我的博客：  
+https://thierryzhou.github.io

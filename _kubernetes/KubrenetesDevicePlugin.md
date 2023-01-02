@@ -8,8 +8,14 @@ Kubernetes 提供了一个 设备插件框架， 你可以用它来将系统硬�
 
 供应商可以实现设备插件，由你手动部署或作为 DaemonSet 来部署，而不必定制 Kubernetes 本身的代码。目标设备包括 GPU、高性能 NIC、FPGA、 InfiniBand 适配器以及其他类似的、可能需要特定于供应商的初始化和设置的计算资源。
 
-注册设备插件
+## 插件工作流程
+
+#### 1. 注册设备
+
+插件通过 Unix Domain Socket 在主机路径 /var/lib/kubelet/device-plugins/kubelet.sock 处的 kubelet 注册自身。
+
 kubelet 提供了一个 Registration 的 gRPC 服务：
+
 ```go
 service Registration {
 	rpc Register(RegisterRequest) returns (Empty) {}
@@ -28,12 +34,19 @@ type RegisterRequest struct {
 }
 ```
 
-注册成功后，用户请求设备资源了，请求方法与cpu和memory的管理请求和限制的方式相似，但有以下区别：
+成功注册自身后，设备插件将以服务模式运行，在此期间，它将持续监控设备运行状况， 并在设备状态发生任何变化时向 kubelet 报告。它还负责响应 Allocate gRPC 请求。 在 Allocate 期间，设备插件可能还会做一些设备特定的准备；例如 GPU 清理或 QRNG 初始化。 如果操作成功，则设备插件将返回 AllocateResponse，其中包含用于访问被分配的设备容器运行时的配置。 kubelet 将此信息传递到容器运行时。
+
+用户请求资源的方法与 cpu 和 memory 的管理请求和限制的方式相似，但有以下区别：
 1. 扩展资源仅可作为整数资源使用，并且不能被过量使用
 2. 设备不能在容器之间共享
+
+另外，设备插件应能监测到 kubelet 重启，并且向新的 kubelet 实例来重新注册自己。在当前实现中，当 kubelet 重启的时候，新的 kubelet 实例会删除 /var/lib/kubelet/device-plugins 下所有已经存在的 Unix 套接字。 设备插件需要能够监控到它的 Unix 套接字被删除，并且当发生此类事件时重新注册自己。
+
 **示例**
 假设 Kubernetes 集群正在运行一个设备插件，该插件在一些节点上公布的资源为 hardware-vendor.example/foo。下面就是一个 Pod 示例，请求此资源以运行一个工作负载的示例：
+
 ```shell
+kubectl apply -f EOF<
 apiVersion: v1
 kind: Pod
 metadata:
@@ -45,14 +58,16 @@ spec:
       resources:
         limits:
           hardware-vendor.example/foo: 2
+EOF
 ```
 这个 pod 需要两个 hardware-vendor.example/foo 设备，而且只能够调度到满足需求的节点上。如果该节点中有 2 个以上的设备可用，其余的可供其他 Pod 使用。
 调度完成后，Kubelet就会在本机上创建对应的 Pod ，当Kubelet发现 Pod 申请了 hardware-vendor.example/foo 就会与本机的设备插件unix socket 通信，请求它提供支持。设备插件的常规工作流程包括以下几个步骤：
 
-1. 初始化
-在这个阶段，设备插件将执行供应商特定的初始化和设置， 以确保设备处于就绪状态。
+##### 2. 初始化
+在这个阶段，设备插件将执行自定义的初始化和设置工作，以确保设备处于就绪状态。
 
-插件使用主机路径 /var/lib/kubelet/device-plugins/ 下的 Unix Socket启动一个 gRPC 服务，该服务实现以下接口：
+插件启动一个  Unix Domain Socket 位于主机路径 /var/lib/kubelet/device-plugins/ 下的 gRPC 服务，该服务实现以下接口：
+
 ```go
 service DevicePlugin {
     // GetDevicePluginOptions 返回与设备管理器沟通的选项。
@@ -79,26 +94,20 @@ service DevicePlugin {
 }
 ```
 有两点需要额外说明：
-1) 插件并非必须为 GetPreferredAllocation() 或 PreStartContainer() 提供有用的实现逻辑， 调用 GetDevicePluginOptions() 时所返回的 DevicePluginOptions 消息中应该设置这些调用是否可用。
-2) kubelet 在真正调用这些函数之前，总会调用 GetDevicePluginOptions() 来查看是否存在这些可选的函数。
+1. 插件并非必须为 GetPreferredAllocation() 或 PreStartContainer() 提供有用的实现逻辑， 调用 GetDevicePluginOptions() 时所返回的 DevicePluginOptions 消息中应该设置这些调用是否可用。
+2. kubelet 在真正调用这些函数之前，总会调用 GetDevicePluginOptions() 来查看是否存在这些可选的函数。
 
-插件通过 Unix socket 在主机路径 /var/lib/kubelet/device-plugins/kubelet.sock 处向 kubelet 注册自身。
-成功注册自身后，设备插件将以服务模式运行，在此期间，它将持续监控设备运行状况， 并在设备状态发生任何变化时向 kubelet 报告。它还负责响应 Allocate gRPC 请求。 在 Allocate 期间，设备插件可能还会做一些设备特定的准备；例如 GPU 清理或 QRNG 初始化。 如果操作成功，则设备插件将返回 AllocateResponse，其中包含用于访问被分配的设备容器运行时的配置。 kubelet 将此信息传递到容器运行时。
-处理 kubelet 重启
-设备插件应能监测到 kubelet 重启，并且向新的 kubelet 实例来重新注册自己。 在当前实现中，当 kubelet 重启的时候，新的 kubelet 实例会删除 /var/lib/kubelet/device-plugins 下所有已经存在的 Unix 套接字。 设备插件需要能够监控到它的 Unix 套接字被删除，并且当发生此类事件时重新注册自己。
-
-2. 设备插件部署
+##### 3. 设备插件部署
 你可以将你的设备插件作为节点操作系统的软件包来部署、作为 DaemonSet 来部署或者手动部署。
 
-规范目录 /var/lib/kubelet/device-plugins 是需要特权访问的， 所以设备插件必须要在被授权的安全的上下文中运行。 如果你将设备插件部署为 DaemonSet，/var/lib/kubelet/device-plugins 目录必须要在插件的 PodSpec 中声明作为 卷（Volume） 被挂载到插件中。
+由于目录 /var/lib/kubelet/device-plugins 是需要特权访问的， 所以设备插件必须要在被授权的安全的上下文中运行。 如果你将设备插件部署为 DaemonSet，/var/lib/kubelet/device-plugins 目录必须要在插件的 PodSpec 中声明作为 卷（Volume） 被挂载到插件中。
 
 如果你选择 DaemonSet 方法，你可以通过 Kubernetes 进行以下操作： 将设备插件的 Pod 放置在节点上，在出现故障后重新启动守护进程 Pod，来进行自动升级。
 
-API 兼容性
-Kubernetes 设备插件支持还处于 beta 版本。所以在稳定版本出来之前 API 会以不兼容的方式进行更改。 作为一个项目，Kubernetes 建议设备插件开发者：
+## 总结
 
-注意未来版本的更改
-支持多个版本的设备插件 API，以实现向后/向前兼容性。
+Kubernetes 设备插件还处于 beta 阶段，所以在稳定版本出来之前 API 会以不兼容的方式进行更改。 项目中使用到 设备插件时，需要注意未来版本的更改，支持多个版本的设备插件 API，以实现向后/向前兼容性。
+
 如果你启用 DevicePlugins 功能，并在需要升级到 Kubernetes 版本来获得较新的设备插件 API 版本的节点上运行设备插件，请在升级这些节点之前先升级设备插件以支持这两个版本。 采用该方法将确保升级期间设备分配的连续运行。
 
 监控设备插件资源
@@ -106,6 +115,7 @@ Kubernetes 设备插件支持还处于 beta 版本。所以在稳定版本出来
 为了监控设备插件提供的资源，监控代理程序需要能够发现节点上正在使用的设备， 并获取元数据来描述哪个指标与容器相关联。 设备监控代理暴露给 Prometheus 的指标应该遵循 Kubernetes Instrumentation Guidelines， 使用 pod、namespace 和 container 标签来标识容器。
 
 kubelet 提供了 gRPC 服务来使得正在使用中的设备被发现，并且还为这些设备提供了元数据：
+
 ```go
 // PodResourcesLister 是一个由 kubelet 提供的服务，用来提供供节点上 
 // Pod 和容器使用的节点资源的信息
@@ -114,8 +124,10 @@ service PodResourcesLister {
     rpc GetAllocatableResources(AllocatableResourcesRequest) returns (AllocatableResourcesResponse) {}
 }
 ```
+
 List gRPC 端点
 这一 List 端点提供运行中 Pod 的资源信息，包括类似独占式分配的 CPU ID、设备插件所报告的设备 ID 以及这些设备分配所处的 NUMA 节点 ID。 此外，对于基于 NUMA 的机器，它还会包含为容器保留的内存和大页的信息。
+
 ```go
 // ListPodResourcesResponse 是 List 函数的响应
 message ListPodResourcesResponse {

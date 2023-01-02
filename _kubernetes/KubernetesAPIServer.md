@@ -7,9 +7,14 @@ tag: kubernetes
 
 ## 概述
 
-![apiserver](/assets/images/kubernetes/kube-apiserver-arch.webp)
 
-kube-apiserver 提供集群管理的REST API接口，包括认证授权、数据校验以及集群状态变更等。它是其他模块之间的数据交互和通信的枢纽（其他模块通过 APIServer 查询或修改数据，只有API Server 才直接操作 etcd）（在k8s技术栈里面，应该只有apiserver自己去连etcd，因为apiserver这边可以对etcd做些保护操作，比如限流的操作，认证鉴权的操作，它是挡在etcd之前的一个守护者，apiserver这边又有缓存的机制，其实很多的读操作就在apiserver这边处理掉了，它不会再将请求转到etcd里面去，这样的话其实有效的减少了整个集群对etcd的并发请求）。
+kube-apiserver 提供集群管理的REST API接口，包括认证授权、数据校验以及集群状态变更等。它是其他模块之间的数据交互和通信的枢纽（其他模块通过 APIServer 查询或修改数据，只有API Server 才直接操作 etcd）。
+
+在 kubernetes 集群中，应该只有 apiserver 自己去连 etcd ，因为apiserver这边可以对etcd做些保护操作，比如限流的操作，认证鉴权的操作，它是挡在etcd之前的一个守护者，apiserver这边又有缓存的机制，其实很多的读操作就在apiserver这边处理掉了，它不会再将请求转到etcd里面去，这样的话其实有效的减少了整个集群对etcd的并发请求。
+
+## 架构
+
+![apiserver](/assets/images/kubernetes/kube-apiserver-arch.webp)
 
 #### 访问控制概览
 
