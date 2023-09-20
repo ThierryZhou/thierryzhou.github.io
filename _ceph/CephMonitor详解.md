@@ -3,10 +3,6 @@ title: Ceph Monitor 详解
 tag: ceph
 ---
 
-## 前置知识
-
-
-
 ## Ceph Monitor 架构分析
 
 Ceph Monitor 的内部包含kv数据、Paxos模块以及一系列的业务模块。从下往上分别是MonitorDBStore、Paxos、PaxosService、osdmap/monmap/mdsmap...  
@@ -18,36 +14,41 @@ XXXmap 是经过Paxos处理后的资源列表。
 ![Monitor架构图](/assets/images/ceph/ceph-monitor-stack.jpg)
 
 从代码角度看，Monitor 启动有五个步骤：
-
+```shell
 preinit() -> bootstrap() -> _reset() -> ms_dispatch() -> refresh_from_paxos()
+```
 
 ![paxos-stack](/assets/images/ceph/ceph-paxos-stack.png)
 
 #### PreInit
-monitor进程启动的时候，会初始化paxos及其服务，如果服务需要特殊初始化。  
-调用流程:  
+monitor进程启动的时候，会初始化paxos及其服务，如果服务需要特殊初始化。调用流程如下:  
+```shell
 Monitor::preinit() -> Monitor::init_paxos() -> FooService::init()
+```
 
 #### Bootstrap
-monitor进程在很多情况下会重新进入bootstrap流程，这个过程会重启服务。  
-调用流程:  
+monitor进程在很多情况下会重新进入bootstrap流程，这个过程会重启服务。调用流程如下:  
+```shell
 Monitor::bootstrap() -> Monitor::_reset() -> PaxosService::restart() -> FooService::on_restart()
+```
 
 #### Refresh
 
-决议完成后，需要更新决议的内容。  
-调用流程如下:  
+决议完成后，需要更新决议的内容。调用流程如下:  
+```shell
 Paxos::do_refresh() -> Monitor::refresh_from_paxos() -> PaxosService::refresh() -> FooService::update_from_paxos()
+```
 
 #### Active
 
-更新完成后，需要执行最开始的回调，然后重新回到active状态，服务需要重载PaxosService::on_active接口:
+更新完成后，需要执行最开始的回调，然后重新回到 active 状态，服务需要重载 PaxosService::on_active 接口。
 
 #### Process
 
-Paxos 模块定位是，paxos 算法模型+消息发送，数据只是bytes；PaxosService 模式的定位是有数据类型的paxos，并提供根据数据类型的一些方法，比如monmap。
-调用流程如下所示：  
+Paxos 模块定位是，paxos 算法模型+消息发送，数据只是 bytes；PaxosService 模式的定位是有数据类型的 paxos，并提供根据数据类型的一些方法，比如 monmap。调用流程如下所示：  
+```shell
 PaxosService::dispatch() -> PaxosService::propose_pending() -> PaxosService::encode_pending()
+```
 依次看一下代码：
 ```cpp
 bool PaxosService::dispatch(MonOpRequestRef op)
